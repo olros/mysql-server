@@ -33,6 +33,7 @@
 #include "my_sqlcommand.h"
 #include "mysql/strings/m_ctype.h"
 #include "mysqld_error.h"
+#include "parse_tree_hints.h"
 #include "sql/derror.h"
 #include "sql/item_subselect.h"
 #include "sql/mysqld.h"  // table_alias_charset
@@ -582,4 +583,27 @@ bool PT_hint_resource_group::do_contextualize(Parse_context *pc) {
   pc->thd->resource_group_ctx()
       ->m_switch_resource_group_str[m_resource_group_name.length] = '\0';
   return false;
+}
+
+bool ::PT_hint_end_const_filter::do_contextualize(Parse_context *pc) {
+  if (super::do_contextualize(pc)) return true;
+
+  if (pc->thd->lex->sql_command != SQLCOM_SELECT ||  // not a SELECT statement
+      pc->thd->lex->sphead ||                        // or in a SP/trigger/event
+      pc->select != pc->thd->lex->query_block)       // or in a subquery
+  {
+    push_warning(pc->thd, Sql_condition::SL_WARNING,
+                 ER_WARN_UNSUPPORTED_MAX_EXECUTION_TIME,
+                 ER_THD(pc->thd, ER_WARN_UNSUPPORTED_MAX_EXECUTION_TIME));
+    return false;
+  }
+
+  Opt_hints_global *global_hint = get_global_hints(pc);
+  if (global_hint->is_specified(type())) {
+    // Hint duplication: /*+ MAX_EXECUTION_TIME ... MAX_EXECUTION_TIME */
+    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, nullptr, nullptr, nullptr,
+               this);
+    return false;
+  }
+  pc->thd->end_const_filter = true
 }

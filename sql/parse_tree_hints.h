@@ -351,4 +351,32 @@ class PT_hint_resource_group : public PT_hint {
   }
 };
 
+class PT_hint_end_const_filter : public PT_hint {
+  typedef PT_hint super;
+
+ public:
+  PT_hint_end_const_filter() : PT_hint(END_CONST_FILTER_ENUM, true) {}
+
+  /**
+    Function initializes resource group name and checks for presence of
+    resource group. Also it checks for invocation of hint from stored
+    routines or sub query.
+
+     @param pc Pointer to Parse_context object
+
+     @return true in case of error,
+             false otherwise
+  */
+
+  bool do_contextualize(Parse_context *pc) override;
+
+  /**
+    Append hint arguments to given string.
+
+    @param thd      Pointer to THD object.
+    @param str      Pointer to String object.
+  */
+
+  void append_args(const THD *thd, String *str) const override;
+};
 #endif /* PARSE_TREE_HINTS_INCLUDED */

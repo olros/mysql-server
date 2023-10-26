@@ -31,6 +31,7 @@
 #include "my_compiler.h"
 
 #include "mysqld_error.h"
+#include "opt_hints.h"
 #include "sql/derror.h"
 #include "sql/lex_token.h"
 #include "sql/sql_class.h"
@@ -226,6 +227,7 @@ void Hint_scanner::add_hint_token_digest() {
           case NO_ORDER_INDEX_HINT:
           case DERIVED_CONDITION_PUSHDOWN_HINT:
           case NO_DERIVED_CONDITION_PUSHDOWN_HINT:
+          case END_CONST_FILTER_ENUM:
             break;
           default:
             assert(false);

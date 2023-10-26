@@ -1,0 +1,17 @@
+[
+    {
+        "arguments": [
+            "/usr/bin/cc",
+            "-fno-omit-frame-pointer",
+            "-ftls-model=initial-exec",
+            "-fPIE",
+            "-c",
+            "-o",
+            "CMakeFiles/cmTC_fe3ea.dir/find_libevent_version.c.o",
+            "/home/hermann/mysql-server/build/find_libevent_version.c"
+        ],
+        "directory": "/home/hermann/mysql-server/build/CMakeFiles/CMakeTmp",
+        "file": "/home/hermann/mysql-server/build/find_libevent_version.c",
+        "output": "/home/hermann/mysql-server/build/CMakeFiles/CMakeTmp/CMakeFiles/cmTC_fe3ea.dir/find_libevent_version.c.o"
+    }
+]
