@@ -369,14 +369,5 @@ class PT_hint_end_const_filter : public PT_hint {
   */
 
   bool do_contextualize(Parse_context *pc) override;
-
-  /**
-    Append hint arguments to given string.
-
-    @param thd      Pointer to THD object.
-    @param str      Pointer to String object.
-  */
-
-  void append_args(const THD *thd, String *str) const override;
 };
 #endif /* PARSE_TREE_HINTS_INCLUDED */

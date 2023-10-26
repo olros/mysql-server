@@ -25,6 +25,7 @@
 #include <limits.h>
 #include <string.h>
 #include <atomic>
+#include <cstdio>
 #include <list>
 #include <string>
 #include <vector>
@@ -72,7 +73,9 @@ using std::swap;
 using std::vector;
 
 int FilterIterator::Read() {
+  int loops = 0;
   for (;;) {
+    loops++;
     int err = m_source->Read();
     if (err != 0) return err;
 
@@ -88,8 +91,10 @@ int FilterIterator::Read() {
 
     if (!matched) {
       m_source->UnlockRow();
-      if (m_condition->const_for_execution()) {
-        return 0;
+      if (m_condition->const_for_execution() && thd()->end_const_filter &&
+          loops == 1) {
+        printf("Inside if");
+        return EOF;
       }
       continue;
     }

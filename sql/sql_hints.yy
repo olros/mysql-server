@@ -135,6 +135,7 @@ static bool parse_int(longlong *to, const char *from, size_t from_length)
 %token DERIVED_CONDITION_PUSHDOWN_HINT 1047
 %token NO_DERIVED_CONDITION_PUSHDOWN_HINT 1048
 %token HINT_ARG_FLOATING_POINT_NUMBER 1049
+%token END_CONST_FILTER_HINT 1050
 
 /*
   YYUNDEF is internal to Bison. Please don't change its number, or change
@@ -166,6 +167,7 @@ static bool parse_int(longlong *to, const char *from, size_t from_length)
   qb_name_hint
   set_var_hint
   resource_group_hint
+  end_const_filter_hint
 
 %type <hint_list> hint_list
 
@@ -239,6 +241,7 @@ hint:
         | max_execution_time_hint
         | set_var_hint
         | resource_group_hint
+        | end_const_filter_hint
         ;
 
 
@@ -624,6 +627,16 @@ qb_name_hint:
               YYABORT; // OOM
           }
         ;
+
+end_const_filter_hint:
+          END_CONST_FILTER_HINT
+          {
+              $$ = NEW_PTN PT_hint_end_const_filter;
+              if ($$ == NULL)
+                YYABORT; // OOM
+          }
+        ;
+
 
 set_var_hint:
           SET_VAR_HINT '(' set_var_ident '=' set_var_arg ')'

@@ -585,25 +585,9 @@ bool PT_hint_resource_group::do_contextualize(Parse_context *pc) {
   return false;
 }
 
-bool ::PT_hint_end_const_filter::do_contextualize(Parse_context *pc) {
+bool PT_hint_end_const_filter::do_contextualize(Parse_context *pc) {
   if (super::do_contextualize(pc)) return true;
 
-  if (pc->thd->lex->sql_command != SQLCOM_SELECT ||  // not a SELECT statement
-      pc->thd->lex->sphead ||                        // or in a SP/trigger/event
-      pc->select != pc->thd->lex->query_block)       // or in a subquery
-  {
-    push_warning(pc->thd, Sql_condition::SL_WARNING,
-                 ER_WARN_UNSUPPORTED_MAX_EXECUTION_TIME,
-                 ER_THD(pc->thd, ER_WARN_UNSUPPORTED_MAX_EXECUTION_TIME));
-    return false;
-  }
-
-  Opt_hints_global *global_hint = get_global_hints(pc);
-  if (global_hint->is_specified(type())) {
-    // Hint duplication: /*+ MAX_EXECUTION_TIME ... MAX_EXECUTION_TIME */
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, nullptr, nullptr, nullptr,
-               this);
-    return false;
-  }
-  pc->thd->end_const_filter = true
+  pc->thd->end_const_filter = true;
+  return false;
 }

@@ -1,0 +1,14 @@
+drop table if exists t;
+create table t(x int);
+0
+insert into t values (), (), (), (), (), (), (), (), (), ();
+10
+set optimizer_switch='hypergraph_optimizer=off';
+0
+explain analyze select 1 from t t1 where 100 = (select count(*)from t t2);
+?
+set optimizer_switch='hypergraph_optimizer=on';
+0
+explain analyze select 1 from t t1 where 100 = (select count(*) from t t2);
+?
+drop table t;
