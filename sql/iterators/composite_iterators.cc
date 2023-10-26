@@ -82,12 +82,11 @@ using std::vector;
 int FilterIterator::Read() {
   int loops = 0;
   for (;;) {
-    loops++;
+    loops += 1;
     int err = m_source->Read();
     if (err != 0) return err;
 
     bool matched = m_condition->val_int();
-
     if (thd()->killed) {
       thd()->send_kill_message();
       return 1;
@@ -100,7 +99,6 @@ int FilterIterator::Read() {
       m_source->UnlockRow();
       if (m_condition->const_for_execution() && thd()->end_const_filter &&
           loops == 1) {
-        printf("Inside if");
         return EOF;
       }
       continue;
@@ -901,10 +899,10 @@ bool MaterializeIterator<Profiler>::Init() {
     // Create the table if it's the very first time.
     //
     // TODO(sgunders): create_materialized_table() calls
-    // instantiate_tmp_table(), and then has some logic to deal with more
-    // complicated cases like multiple reference to the same CTE.
-    // Consider unifying this with the instantiate_tmp_table() case below
-    // (which is used for e.g. materialization for sorting).
+    // instantiate_tmp_table(), and then has some logic to deal with
+    // more complicated cases like multiple reference to the same CTE.
+    // Consider unifying this with the instantiate_tmp_table() case
+    // below (which is used for e.g. materialization for sorting).
     if (table()->pos_in_table_list->create_materialized_table(thd())) {
       return true;
     }
@@ -956,7 +954,8 @@ bool MaterializeIterator<Profiler>::Init() {
     }
     empty_record(table());
   } else {
-    table()->file->ha_index_or_rnd_end();  // @todo likely unneeded => remove
+    table()->file->ha_index_or_rnd_end();  // @todo likely unneeded =>
+                                           // remove
     table()->file->ha_delete_all_rows();
   }
 
@@ -969,13 +968,13 @@ bool MaterializeIterator<Profiler>::Init() {
     //                             SELECT * FROM cte)
     // and assume that the CTE is outer-correlated. When EXISTS is
     // evaluated, Query_expression::ClearForExecution() calls
-    // clear_correlated_query_blocks(), which scans the WITH clause and clears
-    // the CTE, including its references to itself in its recursive definition.
-    // But, if the query expression owning WITH is merged up, e.g. like this:
-    // FROM ot SEMIJOIN cte ON TRUE,
-    // then there is no Query_expression anymore, so its WITH clause is
-    // not reached. But this "lateral CTE" still needs comprehensive resetting.
-    // That's done here.
+    // clear_correlated_query_blocks(), which scans the WITH clause and
+    // clears the CTE, including its references to itself in its
+    // recursive definition. But, if the query expression owning WITH is
+    // merged up, e.g. like this: FROM ot SEMIJOIN cte ON TRUE, then
+    // there is no Query_expression anymore, so its WITH clause is not
+    // reached. But this "lateral CTE" still needs comprehensive
+    // resetting. That's done here.
     if (m_cte->clear_all_references()) return true;
   }
 
@@ -1164,9 +1163,9 @@ bool MaterializeIterator<Profiler>::MaterializeRecursive() {
     }
 
     /*
-      If recursive query blocks have been executed at least once, and repeated
-      executions should not be traced, disable tracing, unless it already is
-      disabled.
+      If recursive query blocks have been executed at least once, and
+      repeated executions should not be traced, disable tracing, unless
+      it already is disabled.
     */
     if (!disabled_trace &&
         !trace.feature_enabled(Opt_trace_context::REPEATED_SUBSELECT)) {
@@ -1392,7 +1391,8 @@ bool MaterializeIterator<Profiler>::check_unique_fields_hash_map(TABLE *t,
 
 #ifndef NDEBUG
   if (m_spill_state.spill()) {
-    if (write &&  // Only inject error for left operand: can only happen there
+    if (write &&  // Only inject error for left operand: can only happen
+                  // there
         m_spill_state.read_state() == materialize_iterator::SpillState::
                                           ReadingState::SS_READING_LEFT_IF &&
         m_spill_state.simulated_secondary_overflow(spill))
@@ -1423,14 +1423,15 @@ bool MaterializeIterator<Profiler>::check_unique_fields_hash_map(TABLE *t,
   ulonglong primary_hash = 0;
   if (m_spill_state.read_state() !=
       materialize_iterator::SpillState::ReadingState::SS_NONE) {
-    // We have read this row from a chunk file, so we know its hash already
+    // We have read this row from a chunk file, so we know its hash
+    // already
     primary_hash = static_cast<ulonglong>(t->hash_field->val_int());
     assert(primary_hash == calc_row_hash(t));
   } else {
     // Create the key, a hash of the record
     primary_hash = calc_row_hash(t);
-    // Save hash field in record: avoids rehash of HF-k chunk files when read
-    // but takes unnecessary space in memory hash map.
+    // Save hash field in record: avoids rehash of HF-k chunk files when
+    // read but takes unnecessary space in memory hash map.
     t->hash_field->store(static_cast<longlong>(primary_hash), true);
   }
   // A secondary hash based on primary hash used as robin hood key
@@ -1498,9 +1499,10 @@ bool MaterializeIterator<Profiler>::check_unique_fields_hash_map(TABLE *t,
     m_mem_root->RawCommit(bytes_to_commit);
   } else {
     // Check if rows are equal.
-    // We have the record we just read in record[0], save that into record[1]
-    // because LoadImmutableStringIntoTableBuffers will instantiate into
-    // record[0], then compare record[1] against record[0].
+    // We have the record we just read in record[0], save that into
+    // record[1] because LoadImmutableStringIntoTableBuffers will
+    // instantiate into record[0], then compare record[1] against
+    // record[0].
     store_record(t, record[1]);
     if (m_table_collection.has_blob_column()) {
       // LoadImmutableStringIntoTableBuffers will destroy/clobber any blob we
@@ -1555,7 +1557,8 @@ bool MaterializeIterator<Profiler>::handle_hash_map_full(
     Opt_trace_array trace_steps(trace, "steps");
     m_use_hash_map = false;
 
-    // Save current row for later use, see save_operand_to_IF_chunk_files
+    // Save current row for later use, see
+    // save_operand_to_IF_chunk_files
     if (m_spill_state.save_offending_row()) return true;
 
     TABLE *const t = table();
@@ -1638,9 +1641,9 @@ bool MaterializeIterator<Profiler>::process_row_hash(
 
   if (m_spill_state.read_state() ==
       materialize_iterator::SpillState::ReadingState::SS_READING_RIGHT_HF) {
-    // Need special handling here since otherwise for operand > 0, we wouldn't
-    // be re-populating the hash map, just checking against it, cf comment
-    // below: "never write"
+    // Need special handling here since otherwise for operand > 0, we
+    // wouldn't be re-populating the hash map, just checking against it,
+    // cf comment below: "never write"
     return load_HF_row_into_hash_map();
   }
 
@@ -2954,9 +2957,9 @@ RowIterator *materialize_iterator::CreateIterator(
         thd, std::move(operands), path_params, std::move(table_iterator), join);
 
     /*
-      Provide timing data for the iterator that iterates over the temporary
-      table. This should include the time spent both materializing the table
-      and iterating over it.
+      Provide timing data for the iterator that iterates over the
+      temporary table. This should include the time spent both
+      materializing the table and iterating over it.
     */
     table_iter_ptr->SetOverrideProfiler(iter->GetTableIterProfiler());
     return iter;
@@ -3208,8 +3211,8 @@ bool TemptableAggregateIterator<Profiler>::Init() {
     if (copy_funcs(m_temp_table_param, thd(), CFT_FIELDS))
       return true; /* purecov: inspected */
 
-    // See if we have seen this row already; if so, we want to update it,
-    // not insert a new one.
+    // See if we have seen this row already; if so, we want to update
+    // it, not insert a new one.
     bool group_found;
     if (using_hash_key()) {
       /*
@@ -3308,9 +3311,9 @@ bool TemptableAggregateIterator<Profiler>::Init() {
       materializing the expression, which hasn't been calculated yet. We
       could force the missing calculation by doing copy_funcs() before
       evaluating *group->item; but then, for a group made of N rows, we
-      might be doing N evaluations of another function when only one would
-      suffice (like the '*' in "SELECT a, a*a ... GROUP BY a": only the
-      first/last row of the group, needs to evaluate a*a).
+      might be doing N evaluations of another function when only one
+      would suffice (like the '*' in "SELECT a, a*a ... GROUP BY a":
+      only the first/last row of the group, needs to evaluate a*a).
     */
     Switch_ref_item_slice slice_switch(m_join, m_ref_slice);
 
@@ -3412,9 +3415,9 @@ RowIterator *temptable_aggregate_iterator::CreateIterator(
             std::move(table_iterator), join, ref_slice);
 
     /*
-      Provide timing data for the iterator that iterates over the temporary
-      table. This should include the time spent both materializing the table
-      and iterating over it.
+      Provide timing data for the iterator that iterates over the
+      temporary table. This should include the time spent both
+      materializing the table and iterating over it.
     */
     table_iter_ptr->SetOverrideProfiler(iter->GetTableIterProfiler());
     return iter;

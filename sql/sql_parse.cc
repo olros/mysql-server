@@ -5259,6 +5259,7 @@ void THD::reset_for_next_command() {
   thd->query_start_usec_used = false;
   thd->m_is_fatal_error = false;
   thd->time_zone_used = false;
+  thd->end_const_filter = false;
   /*
     Clear the status flag that are expected to be cleared at the
     beginning of each SQL statement.
