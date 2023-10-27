@@ -86,6 +86,7 @@ struct st_opt_hint_info opt_hint_info[] = {
     {"ORDER_INDEX", false, false, false},
     {"DERIVED_CONDITION_PUSHDOWN", true, true, false},
     {"END_CONST_FILTER", false, false, false},
+    {"FORCE_JOIN_METHOD", false, false, false},
     {nullptr, false, false, false}};
 
 /**

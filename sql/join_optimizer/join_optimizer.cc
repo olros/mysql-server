@@ -3961,6 +3961,11 @@ void CostingReceiver::ProposeHashJoin(
     return;
   }
 
+  if (m_query_block->force_join_method != nullptr &&
+      strcmp(m_query_block->force_join_method->str, "HASH_JOIN") != 0) {
+    return;
+  }
+
   if (Overlaps(left | right, m_fulltext_tables)) {
     // Evaluation of a full-text function requires that the underlying scan is
     // positioned on the row that contains the value to be searched. It is not
@@ -4526,6 +4531,10 @@ void CostingReceiver::ProposeNestedLoopJoin(
   if (Overlaps(left_path->parameter_tables, right)) {
     // The outer table cannot pick up values from the inner,
     // only the other way around.
+    return;
+  }
+  if (m_query_block->force_join_method != nullptr &&
+      strcmp(m_query_block->force_join_method->str, "NESTED_LOOP_JOIN") != 0) {
     return;
   }
 

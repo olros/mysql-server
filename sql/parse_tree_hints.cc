@@ -591,3 +591,9 @@ bool PT_hint_end_const_filter::do_contextualize(Parse_context *pc) {
   pc->thd->end_const_filter = true;
   return false;
 }
+
+bool PT_hint_force_join_method::do_contextualize(Parse_context *pc) {
+  if (super::do_contextualize(pc)) return true;
+  pc->select->force_join_method = &method;
+  return false;
+}

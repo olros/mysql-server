@@ -947,7 +947,8 @@ class JOIN {
       corresponding first inner table through the field t0->on_expr_ref.
       Here ti are structures of the JOIN_TAB type.
 
-    EXAMPLE. For the query:
+    AccessPathEXAMPLE. For the query:
+
     @code
           SELECT * FROM t1
                         LEFT JOIN

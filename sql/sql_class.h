@@ -976,6 +976,7 @@ class THD : public MDL_context_owner,
   */
   ulong want_privilege;
   bool end_const_filter = false;
+  LEX_CSTRING *force_join_method = nullptr;
 
  private:
   /**

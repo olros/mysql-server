@@ -136,6 +136,7 @@ static bool parse_int(longlong *to, const char *from, size_t from_length)
 %token NO_DERIVED_CONDITION_PUSHDOWN_HINT 1048
 %token HINT_ARG_FLOATING_POINT_NUMBER 1049
 %token END_CONST_FILTER_HINT 1050
+%token FORCE_JOIN_METHOD_HINT 1051
 
 /*
   YYUNDEF is internal to Bison. Please don't change its number, or change
@@ -168,6 +169,7 @@ static bool parse_int(longlong *to, const char *from, size_t from_length)
   set_var_hint
   resource_group_hint
   end_const_filter_hint
+  force_join_method_hint
 
 %type <hint_list> hint_list
 
@@ -242,6 +244,7 @@ hint:
         | set_var_hint
         | resource_group_hint
         | end_const_filter_hint
+        | force_join_method_hint
         ;
 
 
@@ -636,7 +639,22 @@ end_const_filter_hint:
                 YYABORT; // OOM
           }
         ;
+force_join_method_hint:
+          FORCE_JOIN_METHOD_HINT '(' HINT_ARG_IDENT ')'
+          {
+            
+            if(strcmp($3.str,"HASH_JOIN") == 0 || strcmp($3.str,"NESTED_LOOP_JOIN") == 0) {
+            scanner->syntax_warning(ER_THD(thd,
+                    ER_WARN_BAD_MAX_EXECUTION_TIME));
 
+            }
+            
+            $$ = NEW_PTN PT_hint_force_join_method($3);
+            
+            if ($$ == NULL)
+                YYABORT; // OOM
+          }
+        ;
 
 set_var_hint:
           SET_VAR_HINT '(' set_var_ident '=' set_var_arg ')'
