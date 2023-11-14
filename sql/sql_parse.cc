@@ -5260,7 +5260,6 @@ void THD::reset_for_next_command() {
   thd->m_is_fatal_error = false;
   thd->time_zone_used = false;
   thd->end_const_filter = false;
-  thd->force_join_method = nullptr;
   /*
     Clear the status flag that are expected to be cleared at the
     beginning of each SQL statement.
