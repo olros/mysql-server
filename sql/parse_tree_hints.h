@@ -357,7 +357,7 @@ class PT_hint_force_join_method : public PT_hint {
 
  public:
   PT_hint_force_join_method(const LEX_CSTRING &method)
-      : PT_hint(END_CONST_FILTER_ENUM, true), method(method) {}
+      : PT_hint(FORCE_JOIN_METHOD_ENUM, true), method(method) {}
   /**
     Function initializes resource group name and checks for presence of
     resource group. Also it checks for invocation of hint from stored
