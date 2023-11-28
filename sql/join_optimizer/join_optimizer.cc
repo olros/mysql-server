@@ -3951,6 +3951,11 @@ void CostingReceiver::ProposeHashJoin(
     const JoinPredicate *edge, FunctionalDependencySet new_fd_set,
     OrderingSet new_obsolete_orderings, bool rewrite_semi_to_inner,
     bool *wrote_trace) {
+  if (m_query_block->force_join_method != nullptr &&
+      strcmp(m_query_block->force_join_method->str, "HASH_JOIN") != 0) {
+    return;
+  }
+
   if (!SupportedEngineFlag(SecondaryEngineFlag::SUPPORTS_HASH_JOIN)) return;
 
   if (Overlaps(left_path->parameter_tables, right) ||
@@ -4520,6 +4525,11 @@ void CostingReceiver::ProposeNestedLoopJoin(
     const JoinPredicate *edge, bool rewrite_semi_to_inner,
     FunctionalDependencySet new_fd_set, OrderingSet new_obsolete_orderings,
     bool *wrote_trace) {
+  if (m_query_block->force_join_method != nullptr &&
+      strcmp(m_query_block->force_join_method->str, "NESTED_LOOP_JOIN") != 0) {
+    return;
+  }
+
   if (!SupportedEngineFlag(SecondaryEngineFlag::SUPPORTS_NESTED_LOOP_JOIN))
     return;
 
