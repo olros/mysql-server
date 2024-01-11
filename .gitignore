@@ -1,6 +1,10 @@
 # emacs backup files
 *~
 
+.idea
+cmake-build-debug
+compile_commands.json
+
 # Misc tags/ctags files
 tags
 TAGS
