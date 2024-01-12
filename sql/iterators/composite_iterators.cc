@@ -469,6 +469,7 @@ bool NestedLoopIterator::Init() {
 }
 
 int NestedLoopIterator::Read() {
+  printf("\n Start of NestedLoopIterator ----- m_join_type: %d \n", m_join_type);
   if (m_state == END_OF_ROWS) {
     return -1;
   }
@@ -476,6 +477,8 @@ int NestedLoopIterator::Read() {
   for (;;) {  // Termination condition within loop.
     if (m_state == NEEDS_OUTER_ROW) {
       int err = m_source_outer->Read();
+      printf("\nsuper test m_source_outer->Read() %d \n", err);
+
       if (err == 1) {
         return 1;  // Error.
       }
@@ -541,6 +544,7 @@ int NestedLoopIterator::Read() {
     } else {
       m_state = READING_INNER_ROWS;
     }
+    printf("\nsuper test m_state %d \n", m_state);
     return 0;
   }
 }
