@@ -760,9 +760,10 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
           continue;
         }
 
+        printf("AccessPath::NESTED_LOOP_JOIN estimated_rows top_path: %f, path: %f, outer: %f, inner: %f \n", top_path->num_output_rows(), path->num_output_rows(), param.outer->num_output_rows(), param.inner->num_output_rows());
         iterator = NewIterator<NestedLoopIterator>(
             thd, mem_root, std::move(job.children[0]),
-            std::move(job.children[1]), param.join_type, param.pfs_batch_mode);
+            std::move(job.children[1]), param.join_type, param.pfs_batch_mode, path->num_output_rows());
         break;
       }
       case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL: {

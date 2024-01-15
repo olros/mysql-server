@@ -328,12 +328,13 @@ class NestedLoopIterator final : public RowIterator {
   NestedLoopIterator(THD *thd,
                      unique_ptr_destroy_only<RowIterator> source_outer,
                      unique_ptr_destroy_only<RowIterator> source_inner,
-                     JoinType join_type, bool pfs_batch_mode)
+                     JoinType join_type, bool pfs_batch_mode, double estimated_rows_for_iterator = -1.0)
       : RowIterator(thd),
         m_source_outer(std::move(source_outer)),
         m_source_inner(std::move(source_inner)),
         m_join_type(join_type),
-        m_pfs_batch_mode(pfs_batch_mode) {
+        m_pfs_batch_mode(pfs_batch_mode),
+        estimated_rows_for_iterator(estimated_rows_for_iterator) {
     assert(m_source_outer != nullptr);
     assert(m_source_inner != nullptr);
 
@@ -382,6 +383,8 @@ class NestedLoopIterator final : public RowIterator {
 
   /** Whether to use batch mode when scanning the inner iterator. */
   const bool m_pfs_batch_mode;
+  double estimated_rows_for_iterator = -1.0;
+  int m_found_count = 0;
 };
 
 /**

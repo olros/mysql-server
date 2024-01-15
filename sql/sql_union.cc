@@ -1773,6 +1773,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
     printf("\n Start of iterator ----- \n");
+    printf("Expected rows: %llu \n", query_result->estimated_rowcount);
     for (;;) {
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);

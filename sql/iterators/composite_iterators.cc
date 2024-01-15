@@ -469,7 +469,7 @@ bool NestedLoopIterator::Init() {
 }
 
 int NestedLoopIterator::Read() {
-  printf("\n Start of NestedLoopIterator ----- m_join_type: %d \n", m_join_type);
+  printf("\n Start of NestedLoopIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
   if (m_state == END_OF_ROWS) {
     return -1;
   }
@@ -544,7 +544,12 @@ int NestedLoopIterator::Read() {
     } else {
       m_state = READING_INNER_ROWS;
     }
-    printf("\nsuper test m_state %d \n", m_state);
+    m_found_count += 1;
+    printf("\nsuper test found/estimated: %d/%f \n", m_found_count, estimated_rows_for_iterator);
+    if (m_found_count > estimated_rows_for_iterator) {
+      // thd()->lex->query_block->tanzx~
+      printf("OH NO! Found count is more than estimated rows. Pls re-optimize 🚀");
+    }
     return 0;
   }
 }
