@@ -10927,7 +10927,8 @@ int ha_innobase::index_next(uchar *buf) /*!< in/out: buffer for next row in
                                         MySQL format */
 {
   ha_statistic_increment(&System_status_var::ha_read_next_count);
-
+  uint64_t x(35)
+  this->ht->page_track.start(&x);
   return (general_fetch(buf, ROW_SEL_NEXT, 0));
 }
 

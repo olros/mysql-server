@@ -474,7 +474,9 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
     switch (path->type) {
       case AccessPath::TABLE_SCAN: {
         const auto &param = path->table_scan();
-        iterator = NewIterator<TableScanIterator>(
+        // iterator = NewIterator<TableScanIterator>(
+        //     thd, mem_root, param.table, path->num_output_rows(), examined_rows);
+        iterator = NewIterator<SmoothScanIterator>(
             thd, mem_root, param.table, path->num_output_rows(), examined_rows);
         break;
       }

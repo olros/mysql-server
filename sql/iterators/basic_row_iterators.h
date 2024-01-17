@@ -127,6 +127,52 @@ class IndexScanIterator final : public TableRowIterator {
   bool m_first = true;
 };
 
+/**
+  Scan a table with smooth scan
+*/
+class SmoothScanIterator final : public TableRowIterator {
+ public:
+  /**
+    @param thd     session context
+    @param table   table to be scanned. Notice that table may be a temporary
+                   table that represents a set operation (UNION, INTERSECT or
+                   EXCEPT). For the latter two, the counter field must be
+                   interpreted by TableScanIterator::Read in order to give the
+                   correct result set, but this is invisible to the consumer.
+    @param expected_rows is used for scaling the record buffer.
+                   If zero or less, no record buffer will be set up.
+    @param examined_rows if not nullptr, is incremented for each successful
+                   Read().
+  */
+  SmoothScanIterator(THD *thd, TABLE *table, double expected_rows,
+                    ha_rows *examined_rows);
+  ~SmoothScanIterator() override;
+
+  bool Init() override;
+  int Read() override;
+
+ private:
+  uchar *const m_record;
+  const double m_expected_rows;
+  ha_rows *const m_examined_rows;
+  /// Used to keep track of how many more duplicates of the last read row that
+  /// remains to be written to the next stage: used for EXCEPT and INTERSECT
+  /// computation: we only ever materialize one row even if there are
+  /// duplicates of it, but with a counter, cf TABLE::m_set_counter. When we
+  /// start scanning we must produce as many duplicates as ALL semantics
+  /// mandate, so we initialize m_examined_rows based on TABLE::m_set_counter
+  /// and decrement for each row we emit, so as to produce the correct number
+  /// of duplicates for the next stage.
+  ulonglong m_remaining_dups{0};
+  /// Used for EXCEPT and INTERSECT only: we cannot enforce limit during
+  /// materialization as for UNION and single table, so we have to do it during
+  /// the scan.
+  const ha_rows m_limit_rows;
+  /// Used for EXCEPT and INTERSECT only: rows scanned so far, see also
+  /// m_limit_rows.
+  ha_rows m_stored_rows{0};
+};
+
 // Readers relating to reading sorted data (from filesort).
 //
 // Filesort will produce references to the records sorted; these
