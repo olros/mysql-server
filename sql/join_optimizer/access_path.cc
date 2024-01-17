@@ -760,9 +760,10 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
           continue;
         }
 
+        printf("AccessPath::NESTED_LOOP_JOIN estimated_rows path: %f, outer: %f, inner: %f \n", path->num_output_rows(), param.outer->num_output_rows(), param.inner->num_output_rows());
         iterator = NewIterator<NestedLoopIterator>(
             thd, mem_root, std::move(job.children[0]),
-            std::move(job.children[1]), param.join_type, param.pfs_batch_mode);
+            std::move(job.children[1]), param.join_type, param.pfs_batch_mode, path->num_output_rows());
         break;
       }
       case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL: {
@@ -808,6 +809,9 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                                &todo);
           continue;
         }
+
+        printf("AccessPath::HASH_JOIN estimated_rows path: %f, outer: %f, inner: %f \n", path->num_output_rows(), param.outer->num_output_rows(), param.inner->num_output_rows());
+
         const JoinPredicate *join_predicate = param.join_predicate;
         vector<HashJoinCondition> conditions;
         conditions.reserve(join_predicate->expr->equijoin_conditions.size());
@@ -911,11 +915,14 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                                eligible_for_batch_mode, &job, &todo);
           continue;
         }
+        printf("AccessPath::FILTER estimated_rows path: %f, child: %f \n", path->num_output_rows(), param.child->num_output_rows());
+        // Note: this can maybe be used to materialize filters in order to check if the cardinalities are
+        // wrong and avoid pipelining at the same time
         if (FinalizeMaterializedSubqueries(thd, join, path)) {
           return nullptr;
         }
         iterator = NewIterator<FilterIterator>(
-            thd, mem_root, std::move(job.children[0]), param.condition);
+            thd, mem_root, std::move(job.children[0]), param.condition, path->num_output_rows());
         break;
       }
       case AccessPath::SORT: {
@@ -925,6 +932,9 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                                eligible_for_batch_mode, &job, &todo);
           continue;
         }
+
+        printf("AccessPath::SORT estimated_rows path: %f, child: %f \n", path->num_output_rows(), param.child->num_output_rows());
+
         ha_rows num_rows_estimate = param.child->num_output_rows() < 0.0
                                         ? HA_POS_ERROR
                                         : lrint(param.child->num_output_rows());

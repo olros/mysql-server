@@ -3951,7 +3951,8 @@ void CostingReceiver::ProposeHashJoin(
     const JoinPredicate *edge, FunctionalDependencySet new_fd_set,
     OrderingSet new_obsolete_orderings, bool rewrite_semi_to_inner,
     bool *wrote_trace) {
-  if (true) return;
+  // Avoid using hash join
+  // if (true) return;
   if (!SupportedEngineFlag(SecondaryEngineFlag::SUPPORTS_HASH_JOIN)) return;
 
   if (Overlaps(left_path->parameter_tables, right) ||
