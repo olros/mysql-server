@@ -1676,6 +1676,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   THD_STAGE_INFO(thd, stage_executing);
   DEBUG_SYNC(thd, "before_join_exec");
 
+  printf("\nStart of ExecuteIteratorQuery ----- \n");
+
   Opt_trace_context *const trace = &thd->opt_trace;
   Opt_trace_object trace_wrapper(trace);
   Opt_trace_object trace_exec(trace, "join_execution");
@@ -1772,12 +1774,10 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     }
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
-    printf("\n Start of iterator ----- \n");
-    printf("Expected rows: %llu \n", query_result->estimated_rowcount);
     for (;;) {
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);
-      printf("\nsuper test error %d \n", error);
+      // printf("\nsuper test error %d \n", error);
 
       if (error > 0 || thd->is_error())  // Fatal error
         return true;
@@ -1802,6 +1802,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   }
 
   thd->current_found_rows = *send_records_ptr;
+
+  printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
 
   return query_result->send_eof(thd);
 }

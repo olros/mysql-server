@@ -81,10 +81,11 @@ class Temp_table_param;
 class FilterIterator final : public RowIterator {
  public:
   FilterIterator(THD *thd, unique_ptr_destroy_only<RowIterator> source,
-                 Item *condition)
-      : RowIterator(thd), m_source(std::move(source)), m_condition(condition) {}
+                 Item *condition, double estimated_rows_for_iterator = -1.0)
+      : RowIterator(thd), m_source(std::move(source)), m_condition(condition), estimated_rows_for_iterator(estimated_rows_for_iterator) {}
 
-  bool Init() override { return m_source->Init(); }
+  // bool Init() override { return m_source->Init(); }
+  bool Init() override;
 
   int Read() override;
 
@@ -101,6 +102,8 @@ class FilterIterator final : public RowIterator {
  private:
   unique_ptr_destroy_only<RowIterator> m_source;
   Item *m_condition;
+  double estimated_rows_for_iterator = -1.0;
+  int m_found_count = 0;
 };
 
 /**
