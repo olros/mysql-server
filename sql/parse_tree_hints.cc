@@ -583,3 +583,9 @@ bool PT_hint_resource_group::do_contextualize(Parse_context *pc) {
       ->m_switch_resource_group_str[m_resource_group_name.length] = '\0';
   return false;
 }
+bool PT_hint_run_reopt_filter::do_contextualize(Parse_context *pc) {
+  if (super::do_contextualize(pc)) return true;
+
+  pc->thd->should_re_opt = true;
+  return false;
+}

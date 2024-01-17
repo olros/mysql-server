@@ -56,6 +56,7 @@
 #include "mysqld_error.h"
 #include "prealloced_array.h"  // Prealloced_array
 #include "scope_guard.h"
+#include "sql_test.h"
 #include "sql/auth/auth_acls.h"
 #include "sql/current_thd.h"
 #include "sql/debug_sync.h"  // DEBUG_SYNC
@@ -1688,16 +1689,21 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     return true;
   }
 
+  printf("\n Has passed clear for execution \n");
+
   mem_root_deque<Item *> *fields = get_field_list();
   Query_result *query_result = this->query_result();
   assert(query_result != nullptr);
 
   if (query_result->start_execution(thd)) return true;
 
+  printf("\n Has passed query result start_execution \n");
+
   if (query_result->send_result_set_metadata(
           thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
     return true;
   }
+  printf("\n Has passed query result send_result_set metadata \n");
 
   set_executed();
 
@@ -1770,13 +1776,13 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     if (m_root_iterator->Init()) {
       return true;
     }
+  printf("\n has passed root_iterator_init \n");
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
     printf("\n Start of iterator ----- \n");
     for (;;) {
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);
-      printf("\nsuper test error %d \n", error);
 
       if (error > 0 || thd->is_error())  // Fatal error
         return true;
@@ -1787,8 +1793,10 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         thd->send_kill_message();
         return true;
       }
+      if (thd->should_re_opt && !thd->has_rerun) continue;
 
       ++*send_records_ptr;
+
 
       if (query_result->send_data(thd, *fields)) {
         return true;

@@ -976,6 +976,9 @@ class THD : public MDL_context_owner,
   */
   ulong want_privilege;
 
+  bool has_rerun = false;
+  bool should_re_opt = false;
+
  private:
   /**
     The lex to hold the parsed tree of conventional (non-prepared) queries.

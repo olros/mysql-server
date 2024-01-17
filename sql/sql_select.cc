@@ -1028,6 +1028,20 @@ bool Sql_cmd_dml::execute_inner(THD *thd) {
     return true;
 
   // Calculate the current statement cost.
+  if(thd->should_re_opt) {
+      printf("\n Rerunning optimizer \n");
+
+  unit->clear_execution();
+  for (Query_block *sl = unit->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
+    if (sl->join != nullptr) {
+      sl->join->destroy();
+      sl->join = nullptr;
+    }
+  }
+  unit->optimize(thd, /*materialize_destination=*/nullptr,
+                     /*create_iterators=*/true, /*finalize_access_paths=*/true);
+    thd->should_re_opt = false;
+  }
   accumulate_statement_cost(lex);
 
   // Perform secondary engine optimizations, if needed.
