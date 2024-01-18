@@ -978,6 +978,9 @@ class THD : public MDL_context_owner,
 
   bool has_rerun = false;
   bool should_re_opt = false;
+  int send_records_ptr_value = 0;
+  mem_root_deque<Item *> *buffer = nullptr;
+  void send_buffer_rows();
 
  private:
   /**
@@ -2920,6 +2923,7 @@ class THD : public MDL_context_owner,
   void init_query_mem_roots();
   void cleanup_connection(void);
   void cleanup_after_query();
+  void cleanup_exec();
   void store_globals();
   void restore_globals();
 

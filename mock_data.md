@@ -1,5 +1,6 @@
 
 set optimizer_switch='hypergraph_optimizer=on';
+set optimizer_trace = 'enabled=on';
 
 use test;
 

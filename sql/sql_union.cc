@@ -98,8 +98,6 @@
 #include "sql/window.h"  // Window
 #include "template_utils.h"
 
-using std::vector;
-
 class Item_rollup_group_item;
 class Item_rollup_sum_switcher;
 class Opt_trace_context;
@@ -1695,15 +1693,19 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
   mem_root_deque<Item *> *fields = get_field_list();
   Query_result *query_result = this->query_result();
+  if (thd->should_re_opt) {
+    query_result->buffer = mem_root_deque<mem_root_deque<Item *>>(thd->mem_root);
+  }
   assert(query_result != nullptr);
-
   if (query_result->start_execution(thd)) return true;
 
   printf("\n Has passed query result start_execution \n");
 
-  if (query_result->send_result_set_metadata(
-          thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
-    return true;
+  if (!thd->has_rerun) {
+    if (query_result->send_result_set_metadata(
+            thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
+      return true;
+            }
   }
   printf("\n Has passed query result send_result_set metadata \n");
 
@@ -1759,21 +1761,23 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     send_records_ptr = &send_records;
   }
   *send_records_ptr = 0;
-
   thd->get_stmt_da()->reset_current_row_for_condition();
 
   {
-    auto join_cleanup = create_scope_guard([this, thd] {
-      for (Query_block *sl = first_query_block(); sl;
-           sl = sl->next_query_block()) {
-        JOIN *join = sl->join;
-        join->join_free();
-        thd->inc_examined_row_count(join->examined_rows);
+      auto join_cleanup = create_scope_guard([this, thd] {
+      if(!thd->should_re_opt) {
+        for (Query_block *sl = first_query_block(); sl;
+             sl = sl->next_query_block()) {
+          JOIN *join = sl->join;
+          join->join_free();
+          thd->inc_examined_row_count(join->examined_rows);
+        }
+        if (!is_simple() && set_operation()->m_is_materialized)
+          thd->inc_examined_row_count(
+              query_term()->query_block()->join->examined_rows);
+
       }
-      if (!is_simple() && set_operation()->m_is_materialized)
-        thd->inc_examined_row_count(
-            query_term()->query_block()->join->examined_rows);
-    });
+      });
 
     if (m_root_iterator->Init()) {
       return true;
@@ -1785,6 +1789,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);
 
+
       if (error > 0 || thd->is_error())  // Fatal error
         return true;
       else if (error < 0)
@@ -1794,24 +1799,91 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         thd->send_kill_message();
         return true;
       }
-      if (thd->should_re_opt && !thd->has_rerun) continue;
 
       ++*send_records_ptr;
-
-
       if (query_result->send_data(thd, *fields)) {
         return true;
       }
+      //if(!thd->should_re_opt && !thd->has_rerun)thd->get_stmt_da()->inc_current_row_for_condition();
       thd->get_stmt_da()->inc_current_row_for_condition();
     }
 
     // NOTE: join_cleanup must be done before we send EOF, so that we get the
     // row counts right.
   }
+  if(!thd->has_rerun && thd->should_re_opt) {
+      printf("\nRerunning optimizer \n");
 
-  thd->current_found_rows = *send_records_ptr;
+    for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
+      if (sl->join != nullptr) {
+        /*
+        sl->join->clear_corr_derived_tmp_tables();
+        sl->join->clear_sj_tmp_tables();
+        sl->join->clear_hash_tables();
+        */
+        sl->join->join_free();
+        sl->join->destroy();
+        sl->join = nullptr;
+      }
+    }
+    this->clear_execution();
+
+  for (TABLE *table = thd->open_tables; table; table = table->next) {
+    table->file->ha_external_lock(thd, F_RDLCK);
+  }
+  //query_result->abort_result_set(thd);
+  //query_result->cleanup();
+    //thd->get_stmt_da()->reset_condition_info(thd);
+
+    /*
+    thd->lex->cleanup(true);
+    thd->query_plan.set_query_plan(SQLCOM_END, nullptr, false);
+    thd->clear_current_query_costs();
+    this->cleanup(true);
+    this->clear_root_access_path();
+    thd->lex->reset_query_tables_list(true);
+  close_thread_tables(thd);
+    lock_tables(thd, thd->lex->query_tables, thd->lex->table_count, 0);
+    open_tables_for_query(
+          thd, thd->lex->query_tables, 0);
+    */
+    this->optimize(thd, /*materialize_destination=*/nullptr,
+                     /*create_iterators=*/true, /*finalize_access_paths=*/true);
+    thd->should_re_opt = false;
+    thd->has_rerun = true;
+    thd->send_records_ptr_value = send_records;
+    printf("\nRerunning again \n");
+    return this->execute(thd);
+  }
+
 
   printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
+  if (thd->has_rerun) {
+    thd->has_rerun = false;
+    for (TABLE *table = thd->open_tables; table; table = table->next) {
+      table->file->ha_external_lock(thd, F_UNLCK);
+    }
+
+    /*
+    ++*send_records_ptr = 0;
+    for (auto buffer_items : query_result->buffer) {
+      ++*send_records_ptr;
+      if (query_result->send_data(thd, buffer_items)) {
+        return true;
+      }
+    }
+    */
+    /*
+    for (size_t i = 0; i < query_result->buffer.size(); i++) {
+      ++*send_records_ptr = i;
+      if (query_result->send_data(thd, *fields)) {
+        return true;
+      }
+    }
+    */
+  }
+
+  thd->current_found_rows = *send_records_ptr;
 
   return query_result->send_eof(thd);
 }
@@ -1827,8 +1899,10 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 bool Query_expression::execute(THD *thd) {
   DBUG_TRACE;
   assert(is_optimized());
+  printf("Passed is_optimized");
 
   if (is_executed() && !uncacheable) return false;
+  printf("Passed is_executed");
 
   assert(!unfinished_materialization());
 

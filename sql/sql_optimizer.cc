@@ -339,6 +339,15 @@ bool JOIN::optimize(bool finalize_access_paths) {
   uint no_jbuf_after = UINT_MAX;
   Query_block *const set_operand_block =
       query_expression()->non_simple_result_query_block();
+  if (
+  !(query_block->leaf_table_count == 0 ||
+         thd->lex->is_query_tables_locked() ||
+         query_block == set_operand_block)){
+  assert(query_block->leaf_table_count == 0);
+  assert(thd->lex->is_query_tables_locked());
+  assert(query_block == set_operand_block);
+
+  }
 
   assert(query_block->leaf_table_count == 0 ||
          thd->lex->is_query_tables_locked() ||
@@ -619,11 +628,12 @@ bool JOIN::optimize(bool finalize_access_paths) {
     Item *having_cond_no_in2exists = remove_in2exists_conds(having_cond);
 
     std::string trace_str;
-    std::string *trace_ptr = thd->opt_trace.is_started() ? &trace_str : nullptr;
+    std::string *trace_ptr =  &trace_str;
 
     SaveCondEqualLists(cond_equal);
 
     m_root_access_path = FindBestQueryPlan(thd, query_block, trace_ptr);
+   printf("\n optimizer trace -------\n\n %s\n\n", trace_ptr->c_str());
     if (finalize_access_paths && m_root_access_path != nullptr) {
       if (FinalizePlanForQueryBlock(thd, query_block)) {
         return true;
