@@ -2877,6 +2877,8 @@ bool CostingReceiver::ProposeTableScan(
     }
   }
 
+  printf("ProposeTableScan %hhd \n", tl->uses_materialization());
+
   // See if this is an information schema table that must be filled in before
   // we scan.
   if (tl->schema_table != nullptr && tl->schema_table->fill_table) {
@@ -2981,8 +2983,9 @@ bool CostingReceiver::ProposeTableScan(
   }
   assert(path.cost >= 0.0);
 
-  ProposeAccessPathForBaseTable(node_idx, force_num_output_rows_after_filter,
-                                /*description_for_trace=*/"", &path);
+  // AccessPath *materializedPath = CreateMaterializationPath(m_thd, m_query_block->join, new (m_thd->mem_root) AccessPath(path), nullptr, nullptr, true);
+  // ProposeAccessPathForBaseTable(node_idx, force_num_output_rows_after_filter, /*description_for_trace=*/"", materializedPath);
+  ProposeAccessPathForBaseTable(node_idx, force_num_output_rows_after_filter, /*description_for_trace=*/"", &path);
   return false;
 }
 
@@ -4756,6 +4759,8 @@ void CostingReceiver::ProposeNestedLoopJoin(
       }
     }
 
+    // AccessPath *materializedPath = CreateMaterializationPath(m_thd, m_query_block->join, new (m_thd->mem_root) AccessPath(new_path), nullptr, nullptr, true);
+
     ProposeAccessPathWithOrderings(left | right, new_fd_set | filter_fd_set,
                                    new_obsolete_orderings, &new_path,
                                    description_for_trace);
@@ -5554,6 +5559,7 @@ bool CheckSupportedQuery(THD *thd) {
   return false;
 }
 
+// Can maybe be used for materialization?
 /**
   Set up an access path for streaming or materializing through a temporary
   table. If none is needed (because earlier iterators already materialize
@@ -5610,6 +5616,7 @@ AccessPath *GetSafePathToSort(THD *thd, JOIN *join, AccessPath *path,
   }
 }
 
+// Can maybe be used for materialization?
 /**
   Sets up an access path for materializing the results returned from a path in a
   temporary table.

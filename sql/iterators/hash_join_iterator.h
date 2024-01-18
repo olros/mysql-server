@@ -329,7 +329,7 @@ class HashJoinIterator final : public RowIterator {
                    bool allow_spill_to_disk, JoinType join_type,
                    const Mem_root_array<Item *> &extra_conditions,
                    HashJoinInput first_input, bool probe_input_batch_mode,
-                   uint64_t *hash_table_generation);
+                   uint64_t *hash_table_generation, AccessPath *base_access_path = nullptr);
 
   bool Init() override;
 
@@ -611,6 +611,8 @@ class HashJoinIterator final : public RowIterator {
 
   // What kind of join the iterator should execute.
   const JoinType m_join_type;
+
+  AccessPath *m_base_access_path;
 
   // If not nullptr, an extra condition that the iterator will evaluate after a
   // lookup in the hash table is done, but before the row is returned. This is

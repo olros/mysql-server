@@ -126,6 +126,7 @@ class PROFILING;
 class Query_tables_list;
 class Relay_log_info;
 class THD;
+struct AccessPath;
 class partition_info;
 class Protocol;
 class Protocol_binary;
@@ -1051,6 +1052,20 @@ class THD : public MDL_context_owner,
     - Other threads may read the value, but must hold LOCK_thd_query to do so.
   */
   String m_rewritten_query;
+
+ public:
+  int m_re_optimize_actual_rows;
+
+  void set_re_optimize_actual_rows(const int *num) { m_re_optimize_actual_rows = *num; }
+
+  /**
+  */
+  class Re_Optimize {
+  public:
+    AccessPath *m_re_optimize_access_path = nullptr;
+    // explicit Re_Optimize(AccessPath *access_path) : m_re_optimize_access_path(access_path) {}
+    void set_re_optimize_access_path(AccessPath *access_path) { m_re_optimize_access_path = access_path; }
+  } re_optimize;
 
  public:
   /* Used to execute base64 coded binlog events in MySQL server */

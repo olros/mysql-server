@@ -68,7 +68,9 @@ HashJoinIterator::HashJoinIterator(
     const std::vector<HashJoinCondition> &join_conditions,
     bool allow_spill_to_disk, JoinType join_type,
     const Mem_root_array<Item *> &extra_conditions, HashJoinInput first_input,
-    bool probe_input_batch_mode, uint64_t *hash_table_generation)
+    bool probe_input_batch_mode, uint64_t *hash_table_generation,
+    AccessPath *base_access_path
+    )
     : RowIterator(thd),
       m_state(State::READING_ROW_FROM_PROBE_ITERATOR),
       m_hash_table_generation(hash_table_generation),
@@ -96,7 +98,9 @@ HashJoinIterator::HashJoinIterator(
               : first_input),
       m_probe_input_batch_mode(probe_input_batch_mode),
       m_allow_spill_to_disk(allow_spill_to_disk),
-      m_join_type(join_type) {
+      m_join_type(join_type),
+      m_base_access_path(base_access_path)
+{
   assert(m_build_input != nullptr);
   assert(m_probe_input != nullptr);
 
@@ -500,8 +504,13 @@ bool HashJoinIterator::BuildHashTable() {
   m_build_input->SetNullRowFlag(/*is_null_row=*/false);
 
   PFSBatchMode batch_mode(m_build_input.get());
+  int count_build_input_rows = 0;
   for (;;) {  // Termination condition within loop.
     int res = m_build_input->Read();
+    if (res == 0) {
+      count_build_input_rows += 1;
+    }
+    // printf("HashJoinIterator::BuildHashTable() count_build_input_rows/estimated: %d/%f \n", count_build_input_rows, m_estimated_build_rows);
     if (res == 1) {
       assert(thd()->is_error() ||
              thd()->killed);  // my_error should have been called.
@@ -509,6 +518,14 @@ bool HashJoinIterator::BuildHashTable() {
     }
 
     if (res == -1) {
+      if (count_build_input_rows > m_estimated_build_rows) {
+        thd()->set_re_optimize_actual_rows(&count_build_input_rows);
+        thd()->re_optimize.set_re_optimize_access_path(m_base_access_path);
+        // printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%d/%f) (num_output_rows: %f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows, m_base_access_path->num_output_rows());
+        printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%d/%f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows);
+        my_error(ER_UNKNOWN_ERROR, MYF(0));
+        return true;
+      }
       m_build_iterator_has_more_rows = false;
       // If the build input was empty, the result of inner joins and semijoins
       // will also be empty. However, if the build input was empty, the output
@@ -532,6 +549,12 @@ bool HashJoinIterator::BuildHashTable() {
 
     const hash_join_buffer::StoreRowResult store_row_result =
         m_row_buffer.StoreRow(thd(), reject_duplicate_keys);
+
+    // printf("HashJoinIterator::BuildHashTable() m_row_buffer.size/estimated: %lu/%f \n", m_row_buffer.size(), m_estimated_build_rows);
+    // if (static_cast<float>(m_row_buffer.size()) > m_estimated_build_rows) {
+    //   printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%lu/%f). Pls re-optimize 🚀\n", m_row_buffer.size(), m_estimated_build_rows);
+    // }
+
     switch (store_row_result) {
       case hash_join_buffer::StoreRowResult::ROW_STORED:
         break;
