@@ -1,17 +1,20 @@
+SET optimizer_switch='hypergraph_optimizer=on';
+create database tmp;
 
-set optimizer_switch='hypergraph_optimizer=on';
-set optimizer_trace = 'enabled=on';
+use tmp;
+create table test(x int);
+create table other(y int);
 
-use test;
+insert into test values (1),(2),(4),(9),(15);
+insert into other values (1),(3),(2),(3),(5),(7),(15),(90),(678),(89),(89),(67),(456),(33),(4578);
 
-create table test(x int, INDEX (x));
-create table test2(x int, INDEX (x));
+-- explain analyze select * from test join other on test.x = other.x;
+-- select * from test join other on test.x = other.x;
 
-insert into test values (1), (2), (3), (4), (5);
-insert into test2 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10); 
-
-select * from test join test2 on test.x = test2.x order by test.x;
-
+create table other2(z int);
+insert into other2 values (1),(2),(4),(15);
+explain analyze select * from test join other on test.x = other.y join other2 on other.y = other2.z WHERE other.y < 12 and other2.z < 10;
+select * from test join other on test.x = other.y join other2 on other.y = other2.z WHERE other.y < 12 and other2.z < 10;
 
 
 
