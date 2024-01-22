@@ -184,6 +184,7 @@ FilterCost EstimateFilterCost(THD *thd, double num_rows, Item *condition,
       [thd, num_rows, &cost](const ContainedSubquery &subquery) {
         AddCost(thd, subquery, num_rows, &cost);
       });
+  printf("EstimateFilterCost: %f, %f, %f \n", num_rows, cost.cost_if_not_materialized, cost.cost_if_materialized);
   return cost;
 }
 

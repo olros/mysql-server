@@ -764,6 +764,7 @@ bool CostingReceiver::FoundSingleNode(int node_idx) {
   // more precise for complex range conditions than our default estimates.
   // This is also the reason why we run it even if HA_NO_INDEX_ACCESS is set.)
   double range_optimizer_row_estimate = -1.0;
+  printf("init FoundSingleNode::range_optimizer_row_estimate %f \n", range_optimizer_row_estimate);
   {
     auto cleanup_mem_root = create_scope_guard([this, node_idx] {
       if (node_idx == 0) {
@@ -821,6 +822,7 @@ bool CostingReceiver::FoundSingleNode(int node_idx) {
     }
   }
 
+  printf("before ProposeTableScan FoundSingleNode::range_optimizer_row_estimate %f \n", range_optimizer_row_estimate);
   if (ProposeTableScan(table, node_idx, range_optimizer_row_estimate)) {
     return true;
   }
@@ -2877,7 +2879,7 @@ bool CostingReceiver::ProposeTableScan(
     }
   }
 
-  printf("ProposeTableScan %hhd \n", tl->uses_materialization());
+  printf("ProposeTableScan %hhd, num_output_row(): %f \n", tl->uses_materialization(), path.num_output_rows());
 
   // See if this is an information schema table that must be filled in before
   // we scan.
@@ -3319,6 +3321,7 @@ void CostingReceiver::ProposeAccessPathForBaseTable(
     const char *description_for_trace, AccessPath *path) {
   for (bool materialize_subqueries : {false, true}) {
     FunctionalDependencySet new_fd_set;
+    printf("ProposeAccessPathForBaseTable::ApplyPredicatesForBaseTable path: %f %d \n", path->num_output_rows(), materialize_subqueries);
     ApplyPredicatesForBaseTable(
         node_idx,
         /*applied_predicates=*/
@@ -3328,6 +3331,7 @@ void CostingReceiver::ProposeAccessPathForBaseTable(
         materialize_subqueries, path, &new_fd_set);
     path->ordering_state =
         m_orderings->ApplyFDs(path->ordering_state, new_fd_set);
+    printf("ProposeAccessPathForBaseTable::force_num_output_rows_after_filter: %f, path: %f \n", force_num_output_rows_after_filter, path->num_output_rows());
     if (force_num_output_rows_after_filter >= 0.0) {
       path->set_num_output_rows(force_num_output_rows_after_filter);
     }
@@ -3402,9 +3406,12 @@ void CostingReceiver::ApplyPredicatesForBaseTable(
     // #33477822.
     if (m_graph->predicates[i].total_eligibility_set == my_map) {
       filter_predicates.SetBit(i);
+      printf("before ApplyPredicatesForBaseTable::EstimateFilterCost \n");
       FilterCost cost =
           EstimateFilterCost(m_thd, path->num_output_rows(),
                              m_graph->predicates[i].contained_subqueries);
+      printf("after ApplyPredicatesForBaseTable::EstimateFilterCost: %f, %f \n", cost.cost_if_not_materialized, cost.cost_if_materialized);
+      // assert(false);
       if (materialize_subqueries) {
         path->cost += cost.cost_if_materialized;
         materialize_cost += cost.cost_to_materialize;
@@ -3416,8 +3423,10 @@ void CostingReceiver::ApplyPredicatesForBaseTable(
         // We already factored in this predicate when calculating
         // the selectivity of the ref access, so don't do it again.
       } else {
+        printf("ApplyPredicatesForBaseTable::num_of_rows: %f, selectivity: %f \n", path->num_output_rows(), m_graph->predicates[i].selectivity);
         path->set_num_output_rows(path->num_output_rows() *
                                   m_graph->predicates[i].selectivity);
+        printf("ApplyPredicatesForBaseTable::new_num_output_rows: %f \n", path->num_output_rows());
       }
       *new_fd_set |= m_graph->predicates[i].functional_dependencies;
     } else if (Overlaps(m_graph->predicates[i].total_eligibility_set, my_map)) {
@@ -7396,15 +7405,18 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
               Overlaps(graph.predicates[i].total_eligibility_set,
                        RAND_TABLE_BIT)) {
             filter_predicates.SetBit(i);
+            printf("before EstimateFilterCost \n");
             FilterCost cost =
                 EstimateFilterCost(thd, root_path->num_output_rows(),
                                    graph.predicates[i].contained_subqueries);
+            printf("after EstimateFilterCost: %f, %f \n", cost.cost_if_not_materialized, cost.cost_if_materialized);
             if (materialize_subqueries) {
               path.cost += cost.cost_if_materialized;
               init_once_cost += cost.cost_to_materialize;
             } else {
               path.cost += cost.cost_if_not_materialized;
             }
+            printf("set_num_output_rows: %f \n", path.num_output_rows() * graph.predicates[i].selectivity);
             path.set_num_output_rows(path.num_output_rows() *
                                      graph.predicates[i].selectivity);
           }

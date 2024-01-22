@@ -15,3 +15,4 @@ create table other2(z int);
 insert into other2 values (1),(2),(4),(15);
 explain analyze select * from test join other on test.x = other.y join other2 on other.y = other2.z WHERE other.y < 12 and other2.z < 10;
 select * from test join other on test.x = other.y join other2 on other.y = other2.z WHERE other.y < 12 and other2.z < 10;
+explain analyze select * from other WHERE other.y < 2;

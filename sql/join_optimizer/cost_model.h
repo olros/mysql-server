@@ -108,9 +108,11 @@ inline FilterCost EstimateFilterCost(
   cost.cost_if_not_materialized = num_rows * kApplyOneFilterCost;
   cost.cost_if_materialized = num_rows * kApplyOneFilterCost;
 
+
   for (const ContainedSubquery &subquery : contained_subqueries) {
     AddCost(thd, subquery, num_rows, &cost);
   }
+  printf("inline EstimateFilterCost: %f, %f, %f \n", num_rows, cost.cost_if_not_materialized, cost.cost_if_materialized);
   return cost;
 }
 
