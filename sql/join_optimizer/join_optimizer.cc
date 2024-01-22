@@ -5278,6 +5278,33 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
+  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && path->type == AccessPath::HASH_JOIN) {
+    const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *m_thd->re_optimize.m_re_optimize_access_path, obsolete_orderings);
+    printf("PathComparisonResult: %d \n", res);
+    if (res == PathComparisonResult::IDENTICAL) {
+
+      auto left = path->hash_join().outer;
+      auto right = path->hash_join().inner;
+
+      right->set_num_output_rows(m_thd->m_re_optimize_actual_rows);
+
+      double num_output_rows = FindOutputRowsForJoin(left->num_output_rows(), right->num_output_rows(), path->hash_join().join_predicate);
+      double build_cost = right->num_output_rows() * kHashBuildOneRowCost;
+      double join_cost = build_cost + left->num_output_rows() * kHashProbeOneRowCost +
+                         num_output_rows * kHashReturnOneRowCost;
+
+      double cost = left->cost + right->cost + join_cost;
+
+      path->set_num_output_rows(num_output_rows);
+      path->cost = cost;
+
+      // path->set_num_output_rows(m_thd->m_re_optimize_actual_rows);
+      // path->cost += 1000000.0;
+
+      printf("\n\n\n\n!!!!PathComparisonResult::IDENTICAL!!!!\n\n\n\n");
+    }
+  }
+
   if (existing_paths->empty()) {
     if (m_trace != nullptr) {
       *m_trace += " - " +
@@ -5324,7 +5351,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
             *m_trace += " This is a bug.\n";
           }
         }
-        if (!has_known_row_count_inconsistency_bugs) {
+        if (!has_known_row_count_inconsistency_bugs && !m_thd->has_rerun) {
           assert(false &&
                  "Inconsistent row counts for different AccessPath objects.");
         }

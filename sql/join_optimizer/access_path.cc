@@ -904,7 +904,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                 ? HashJoinInput::kProbe
                 : HashJoinInput::kBuild;
 
-        AccessPath *base_access_path = first_input == HashJoinInput::kBuild ? param.outer : param.inner;
+        // AccessPath *build_access_path = first_input == HashJoinInput::kBuild ? param.outer : param.inner;
 
         iterator = NewIterator<HashJoinIterator>(
             thd, mem_root, std::move(job.children[1]),
@@ -915,7 +915,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             thd->variables.join_buff_size, std::move(conditions),
             param.allow_spill_to_disk, join_type, *extra_conditions,
             first_input, probe_input_batch_mode, hash_table_generation,
-            base_access_path);
+            path);
         break;
       }
       case AccessPath::FILTER: {

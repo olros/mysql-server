@@ -523,8 +523,8 @@ bool HashJoinIterator::BuildHashTable() {
         thd()->re_optimize.set_re_optimize_access_path(m_base_access_path);
         // printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%d/%f) (num_output_rows: %f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows, m_base_access_path->num_output_rows());
         printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%d/%f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows);
-        my_error(ER_UNKNOWN_ERROR, MYF(0));
-        return true;
+        // my_error(ER_UNKNOWN_ERROR, MYF(0));
+        // return true;
       }
       m_build_iterator_has_more_rows = false;
       // If the build input was empty, the result of inner joins and semijoins
