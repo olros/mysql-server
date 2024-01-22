@@ -2900,6 +2900,10 @@ int handler::ha_index_init(uint idx, bool sorted) {
   DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
   int result;
   DBUG_TRACE;
+  if (!(table_share->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK)) {
+    assert(m_lock_type != F_UNLCK);
+    assert(table_share->tmp_table != NO_TMP_TABLE);
+  }
   assert(table_share->tmp_table != NO_TMP_TABLE || m_lock_type != F_UNLCK);
   assert(inited == NONE);
   if (!(result = index_init(idx, sorted))) inited = INDEX;

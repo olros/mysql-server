@@ -39,6 +39,9 @@
 #include "mysqld_error.h"  // ER_*
 #include "sql/sql_list.h"
 
+
+#include <list>
+
 class Item;
 class Item_subselect;
 class PT_select_var;
@@ -70,7 +73,9 @@ class Query_result {
   */
   double estimated_cost;
 
-  Query_result() : unit(nullptr), estimated_rowcount(0), estimated_cost(0) {}
+  mem_root_deque<mem_root_deque<Item *>> buffer;
+
+  Query_result() : unit(nullptr), estimated_rowcount(0), estimated_cost(0), buffer(nullptr) {}
   virtual ~Query_result() = default;
 
   virtual bool needs_file_privilege() const { return false; }

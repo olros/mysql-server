@@ -179,6 +179,7 @@ FilterCost EstimateFilterCost(THD *thd, double num_rows, Item *condition,
   FilterCost cost;
   cost.cost_if_not_materialized = num_rows * kApplyOneFilterCost;
   cost.cost_if_materialized = num_rows * kApplyOneFilterCost;
+  printf("\n EstimateFilterCost  Num rows %f, cost %f \n", num_rows, cost.cost_if_not_materialized);
   FindContainedSubqueries(
       condition, outer_query_block,
       [thd, num_rows, &cost](const ContainedSubquery &subquery) {

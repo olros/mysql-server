@@ -1756,7 +1756,10 @@ void THD::restore_globals() {
     different master threads may overwrite data of each other on
     slave.
 */
-
+void THD::cleanup_exec() {
+  cleanup_items(item_list());
+  free_items();
+}
 void THD::cleanup_after_query() {
   /*
     Reset rand_used so that detection of calls to rand() will save random

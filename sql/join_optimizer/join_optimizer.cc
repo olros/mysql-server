@@ -4041,6 +4041,7 @@ void CostingReceiver::ProposeHashJoin(
     }
   }
 
+
   if (edge->expr->type == RelationalExpression::LEFT_JOIN &&
       SecondaryEngineHandlerton(m_thd) != nullptr) {
     MoveDegenerateJoinConditionToFilter(m_thd, m_query_block, &edge,
@@ -4055,6 +4056,7 @@ void CostingReceiver::ProposeHashJoin(
   join_path.parameter_tables =
       (left_path->parameter_tables | right_path->parameter_tables) &
       ~(left | right);
+
   join_path.hash_join().outer = left_path;
   join_path.hash_join().inner = right_path;
   join_path.hash_join().join_predicate = edge;
@@ -7405,6 +7407,7 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
             } else {
               path.cost += cost.cost_if_not_materialized;
             }
+            printf("\n number of output rows %f and selectivity %f \n", path.num_output_rows(), graph.predicates[i].selectivity);
             path.set_num_output_rows(path.num_output_rows() *
                                      graph.predicates[i].selectivity);
           }

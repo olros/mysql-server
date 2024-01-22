@@ -351,4 +351,22 @@ class PT_hint_resource_group : public PT_hint {
   }
 };
 
+class PT_hint_run_reopt_filter : public PT_hint {
+  typedef PT_hint super;
+
+public:
+  PT_hint_run_reopt_filter() : PT_hint(RUN_REOPT_ENUM, false) {}
+
+  /**
+    Function initializes resource group name and checks for presence of
+    resource group. Also it checks for invocation of hint from stored
+    routines or sub query.
+     @param pc Pointer to Parse_context object
+     @return true in case of error,
+             false otherwise
+  */
+
+  bool do_contextualize(Parse_context *pc) override;
+};
+
 #endif /* PARSE_TREE_HINTS_INCLUDED */
