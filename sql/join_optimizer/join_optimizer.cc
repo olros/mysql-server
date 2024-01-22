@@ -5280,7 +5280,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
 
   if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && path->type == AccessPath::HASH_JOIN) {
     const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *m_thd->re_optimize.m_re_optimize_access_path, obsolete_orderings);
-    printf("PathComparisonResult: %d \n", res);
+    //printf("PathComparisonResult: %d \n", res);
     if (res == PathComparisonResult::IDENTICAL) {
 
       auto left = path->hash_join().outer;
@@ -7740,6 +7740,16 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
         CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
+    if(thd->re_optimize.m_should_re_opt_hint) {
+      printf("mat");
+        InsertMaterializeNodes(thd, root_path, join, 0);
+        printf("new root %d", root_path->type);
+       //This adds a mat node at the end of a given plan, needs to be here because temp tables needs to be inited before execution
+       //and this is done in WalkAceessPath
+      //root_path =
+      //  CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
+     //                             /*temp_table_param=*/nullptr, false);
+    }
 
   if (trace != nullptr) {
     *trace += StringPrintf("Final cost is %.1f.\n", root_path->cost);
@@ -7751,7 +7761,7 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
                     assert(path->cost >= path->init_cost);
                     assert(path->init_cost >= path->init_once_cost);
                     return false;
-                  });
+                  }, false);
 #endif
 
   join->needs_finalize = true;
@@ -7784,4 +7794,52 @@ AccessPath *FindBestQueryPlan(THD *thd, Query_block *query_block,
                                        &next_retry_subgraph_pairs, trace);
   }
   return root_path;
+}
+
+
+void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
+  switch (path->type) {
+    case AccessPath::NESTED_LOOP_JOIN:
+      InsertMaterializeNodes(thd, path->nested_loop_join().outer, join, level + 1);
+      InsertMaterializeNodes(thd, path->nested_loop_join().inner, join, level + 1);
+    if(level != 0) {
+      AccessPath* mat_path =
+        CreateMaterializationPath(thd, join, path, /*temp_table=*/nullptr,
+                                  /*temp_table_param=*/nullptr, false);
+      //Important has to preform this type update first
+      path->type = AccessPath::MATERIALIZE;
+      path->materialize().table_path = mat_path->materialize().table_path;
+      path->materialize().param = mat_path->materialize().param;
+      path->materialize().subquery_cost = mat_path->materialize().subquery_cost;
+    }
+      printf("\n mat-nested-loop\n");
+      break;
+    case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL:
+      InsertMaterializeNodes(thd, path->nested_loop_semijoin_with_duplicate_removal().outer, join, level +1 );
+      InsertMaterializeNodes(thd, path->nested_loop_semijoin_with_duplicate_removal().inner, join, level + 1);
+      printf("\n mat-nested-bup\n");
+      break;
+    case AccessPath::BKA_JOIN:
+      InsertMaterializeNodes(thd, path->bka_join().outer, join, level + 1);
+      InsertMaterializeNodes(thd, path->bka_join().inner, join, level + 1);
+      printf("\n mat-bka \n");
+      break;
+    case AccessPath::HASH_JOIN:
+      InsertMaterializeNodes(thd, path->hash_join().outer, join, level + 1);
+      InsertMaterializeNodes(thd, path->hash_join().inner, join, level + 1);
+    if(level != 0) {
+      AccessPath* mat_path =
+        CreateMaterializationPath(thd, join, path, /*temp_table=*/nullptr,
+                                  /*temp_table_param=*/nullptr, false);
+      //Important has to preform this type update first
+      path->type = AccessPath::MATERIALIZE;
+      path->materialize().table_path = mat_path->materialize().table_path;
+      path->materialize().param = mat_path->materialize().param;
+      path->materialize().subquery_cost = mat_path->materialize().subquery_cost;
+    }
+      printf("\n mat-hash \n");
+      break;
+    default:
+      break;
+  }
 }
