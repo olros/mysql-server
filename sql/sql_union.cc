@@ -1777,9 +1777,34 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       });
 
     if (m_root_iterator->Init()) {
+      if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
+        thd->clear_error();
+        printf("\nRerunning optimizer \n");
+
+        for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
+          if (sl->join != nullptr) {
+            sl->join->join_free();
+            sl->join->destroy();
+            sl->join = nullptr;
+          }
+        }
+        this->clear_execution();
+
+        if (!thd->lex->is_explain()) {
+          for (TABLE *table = thd->open_tables; table; table = table->next) {
+            table->file->ha_external_lock(thd, F_RDLCK);
+          }
+        }
+        this->optimize(thd, /*materialize_destination=*/nullptr,
+                         /*create_iterators=*/true, /*finalize_access_paths=*/true);
+        thd->re_optimize.m_should_re_opt = false;
+        thd->re_optimize.m_has_rerun = true;
+        printf("\nRerunning again \n");
+        return this->execute(thd);
+      }
       return true;
     }
-  printf("\n has passed root_iterator_init \n");
+    printf("\n has passed root_iterator_init \n");
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
     for (;;) {
@@ -1808,52 +1833,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     // NOTE: join_cleanup must be done before we send EOF, so that we get the
     // row counts right.
   }
-  if(thd->re_optimize.should_re_optimize()) {
-      printf("\nRerunning optimizer \n");
-
-    for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
-      if (sl->join != nullptr) {
-        /*
-        sl->join->clear_corr_derived_tmp_tables();
-        sl->join->clear_sj_tmp_tables();
-        sl->join->clear_hash_tables();
-        */
-        sl->join->join_free();
-        sl->join->destroy();
-        sl->join = nullptr;
-      }
-    }
-    this->clear_execution();
-
-  if (!thd->lex->is_explain()) {
-    for (TABLE *table = thd->open_tables; table; table = table->next) {
-      table->file->ha_external_lock(thd, F_RDLCK);
-    }
-  }
-  //query_result->abort_result_set(thd);
-  //query_result->cleanup();
-    //thd->get_stmt_da()->reset_condition_info(thd);
-
-    /*
-    thd->lex->cleanup(true);
-    thd->query_plan.set_query_plan(SQLCOM_END, nullptr, false);
-    thd->clear_current_query_costs();
-    this->cleanup(true);
-    this->clear_root_access_path();
-    thd->lex->reset_query_tables_list(true);
-  close_thread_tables(thd);
-    lock_tables(thd, thd->lex->query_tables, thd->lex->table_count, 0);
-    open_tables_for_query(
-          thd, thd->lex->query_tables, 0);
-    */
-    this->optimize(thd, /*materialize_destination=*/nullptr,
-                     /*create_iterators=*/true, /*finalize_access_paths=*/true);
-    thd->re_optimize.m_should_re_opt = false;
-    thd->re_optimize.m_has_rerun = true;
-    printf("\nRerunning again \n");
-    return this->execute(thd);
-  }
-
 
   printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
   if (thd->re_optimize.m_has_rerun) {
@@ -1863,24 +1842,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         table->file->ha_external_lock(thd, F_UNLCK);
       }
     }
-
-    /*
-    ++*send_records_ptr = 0;
-    for (auto buffer_items : query_result->buffer) {
-      ++*send_records_ptr;
-      if (query_result->send_data(thd, buffer_items)) {
-        return true;
-      }
-    }
-    */
-    /*
-    for (size_t i = 0; i < query_result->buffer.size(); i++) {
-      ++*send_records_ptr = i;
-      if (query_result->send_data(thd, *fields)) {
-        return true;
-      }
-    }
-    */
   }
 
   thd->current_found_rows = *send_records_ptr;

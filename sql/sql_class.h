@@ -1063,7 +1063,7 @@ class THD : public MDL_context_owner,
   class Re_Optimize {
   public:
     AccessPath *m_re_optimize_access_path = nullptr;
-    int m_re_optimize_actual_rows;
+    int m_re_optimize_actual_rows = -1;
     bool m_has_rerun = false;
     bool m_should_re_opt = false;
     bool m_should_re_opt_hint = false;
@@ -1075,6 +1075,14 @@ class THD : public MDL_context_owner,
     void set_should_re_opt_hint(bool should_re_opt_hint) { m_should_re_opt_hint = should_re_opt_hint; }
 
     bool should_re_optimize() const { return m_should_re_opt_hint && m_should_re_opt && !m_has_rerun && m_re_optimize_access_path != nullptr; }
+
+    void reset() {
+      m_re_optimize_access_path = nullptr;
+      m_re_optimize_actual_rows = -1;
+      m_has_rerun = false;
+      m_should_re_opt = false;
+      m_should_re_opt_hint = false;
+    }
   } re_optimize;
 
  public:

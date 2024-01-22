@@ -108,7 +108,7 @@ int FilterIterator::Read() {
 
     m_found_count += 1;
     if (m_found_count > estimated_rows_for_iterator) {
-      printf("OH NO! Found count is more than estimated rows in FilterIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, estimated_rows_for_iterator);
+      // printf("OH NO! Found count is more than estimated rows in FilterIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, estimated_rows_for_iterator);
     }
 
     // Successful row.
@@ -561,7 +561,7 @@ int NestedLoopIterator::Read() {
     m_found_count += 1;
     // printf("\nsuper test found/estimated: %d/%f \n", m_found_count, estimated_rows_for_iterator);
     if (m_found_count > estimated_rows_for_iterator) {
-      printf("OH NO! Found count is more than estimated rows in NestedLoopIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, estimated_rows_for_iterator);
+      // printf("OH NO! Found count is more than estimated rows in NestedLoopIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, estimated_rows_for_iterator);
     }
     return 0;
   }

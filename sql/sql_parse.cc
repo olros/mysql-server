@@ -5307,6 +5307,8 @@ void THD::reset_for_next_command() {
   thd->reset_skip_readonly_check();
   thd->tx_commit_pending = false;
 
+  thd->re_optimize.reset();
+
   DBUG_PRINT("debug", ("is_current_stmt_binlog_format_row(): %d",
                        thd->is_current_stmt_binlog_format_row()));
 

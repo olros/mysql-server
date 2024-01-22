@@ -507,7 +507,7 @@ bool HashJoinIterator::BuildHashTable() {
   int count_build_input_rows = 0;
   for (;;) {  // Termination condition within loop.
     int res = m_build_input->Read();
-    if (res == 0) {
+    if (res == 0 && thd()->re_optimize.m_should_re_opt_hint) {
       count_build_input_rows += 1;
     }
     // printf("HashJoinIterator::BuildHashTable() count_build_input_rows/estimated: %d/%f \n", count_build_input_rows, m_estimated_build_rows);
@@ -517,15 +517,16 @@ bool HashJoinIterator::BuildHashTable() {
       return true;
     }
 
+    // Kommer ikke hit hvis det er for mange rader
     if (res == -1) {
-      if (count_build_input_rows > m_estimated_build_rows * 1.1 || count_build_input_rows < m_estimated_build_rows * 0.9) {
+      printf("Build row count in HashJoinIterator: %d/%f (%d, %d) 🚀\n", count_build_input_rows, m_estimated_build_rows, thd()->re_optimize.m_should_re_opt_hint, !thd()->re_optimize.m_has_rerun);
+      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && (count_build_input_rows > m_estimated_build_rows * 1.1 || count_build_input_rows < m_estimated_build_rows * 0.9)) {
         thd()->re_optimize.set_should_re_opt(true);
         thd()->re_optimize.set_re_optimize_actual_rows(&count_build_input_rows);
         thd()->re_optimize.set_re_optimize_access_path(m_base_access_path);
-        // printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%d/%f) (num_output_rows: %f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows, m_base_access_path->num_output_rows());
         printf("OH NO! Build row count is not close to estimated build rows in HashJoinIterator (%d/%f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows);
-        // my_error(ER_UNKNOWN_ERROR, MYF(0));
-        // return true;
+        my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");
+        return true;
       }
       m_build_iterator_has_more_rows = false;
       // If the build input was empty, the result of inner joins and semijoins
