@@ -977,9 +977,6 @@ class THD : public MDL_context_owner,
   */
   ulong want_privilege;
 
-  bool has_rerun = false;
-  bool should_re_opt = false;
-  int send_records_ptr_value = 0;
   mem_root_deque<Item *> *buffer = nullptr;
   void send_buffer_rows();
 
@@ -1060,17 +1057,24 @@ class THD : public MDL_context_owner,
   String m_rewritten_query;
 
  public:
-  int m_re_optimize_actual_rows;
-
-  void set_re_optimize_actual_rows(const int *num) { m_re_optimize_actual_rows = *num; }
-
   /**
+   * Contains re-optimize variables
   */
   class Re_Optimize {
   public:
     AccessPath *m_re_optimize_access_path = nullptr;
-    // explicit Re_Optimize(AccessPath *access_path) : m_re_optimize_access_path(access_path) {}
+    int m_re_optimize_actual_rows;
+    bool m_has_rerun = false;
+    bool m_should_re_opt = false;
+    bool m_should_re_opt_hint = false;
+
     void set_re_optimize_access_path(AccessPath *access_path) { m_re_optimize_access_path = access_path; }
+    void set_re_optimize_actual_rows(const int *num) { m_re_optimize_actual_rows = *num; }
+    void set_has_rerun(bool has_rerun) { m_has_rerun = has_rerun; }
+    void set_should_re_opt(bool should_re_opt) { m_should_re_opt = should_re_opt; }
+    void set_should_re_opt_hint(bool should_re_opt_hint) { m_should_re_opt_hint = should_re_opt_hint; }
+
+    bool should_re_optimize() const { return m_should_re_opt_hint && m_should_re_opt && !m_has_rerun && m_re_optimize_access_path != nullptr; }
   } re_optimize;
 
  public:

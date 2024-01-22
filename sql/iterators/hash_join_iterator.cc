@@ -518,11 +518,12 @@ bool HashJoinIterator::BuildHashTable() {
     }
 
     if (res == -1) {
-      if (count_build_input_rows > m_estimated_build_rows) {
-        thd()->set_re_optimize_actual_rows(&count_build_input_rows);
+      if (count_build_input_rows > m_estimated_build_rows * 1.1 || count_build_input_rows < m_estimated_build_rows * 0.9) {
+        thd()->re_optimize.set_should_re_opt(true);
+        thd()->re_optimize.set_re_optimize_actual_rows(&count_build_input_rows);
         thd()->re_optimize.set_re_optimize_access_path(m_base_access_path);
         // printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%d/%f) (num_output_rows: %f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows, m_base_access_path->num_output_rows());
-        printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%d/%f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows);
+        printf("OH NO! Build row count is not close to estimated build rows in HashJoinIterator (%d/%f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows);
         // my_error(ER_UNKNOWN_ERROR, MYF(0));
         // return true;
       }

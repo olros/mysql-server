@@ -5286,7 +5286,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
       auto left = path->hash_join().outer;
       auto right = path->hash_join().inner;
 
-      right->set_num_output_rows(m_thd->m_re_optimize_actual_rows);
+      right->set_num_output_rows(m_thd->re_optimize.m_re_optimize_actual_rows);
 
       double num_output_rows = FindOutputRowsForJoin(left->num_output_rows(), right->num_output_rows(), path->hash_join().join_predicate);
       double build_cost = right->num_output_rows() * kHashBuildOneRowCost;
@@ -5297,9 +5297,6 @@ AccessPath *CostingReceiver::ProposeAccessPath(
 
       path->set_num_output_rows(num_output_rows);
       path->cost = cost;
-
-      // path->set_num_output_rows(m_thd->m_re_optimize_actual_rows);
-      // path->cost += 1000000.0;
 
       printf("\n\n\n\n!!!!PathComparisonResult::IDENTICAL!!!!\n\n\n\n");
     }
@@ -5327,7 +5324,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
   // see bug #33550360.
   const bool has_known_row_count_inconsistency_bugs =
       m_graph->has_reordered_left_joins || has_clamped_multipart_eq_ref ||
-      has_semijoin_with_possibly_clamped_child;
+      has_semijoin_with_possibly_clamped_child || m_thd->re_optimize.m_should_re_opt_hint;
   bool verify_consistency = (m_trace != nullptr);
 #ifndef NDEBUG
   if (!has_known_row_count_inconsistency_bugs) {
@@ -5351,7 +5348,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
             *m_trace += " This is a bug.\n";
           }
         }
-        if (!has_known_row_count_inconsistency_bugs && !m_thd->has_rerun) {
+        if (!has_known_row_count_inconsistency_bugs) {
           assert(false &&
                  "Inconsistent row counts for different AccessPath objects.");
         }

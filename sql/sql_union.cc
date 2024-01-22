@@ -1693,15 +1693,12 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
   mem_root_deque<Item *> *fields = get_field_list();
   Query_result *query_result = this->query_result();
-  if (thd->should_re_opt) {
-    query_result->buffer = mem_root_deque<mem_root_deque<Item *>>(thd->mem_root);
-  }
   assert(query_result != nullptr);
   if (query_result->start_execution(thd)) return true;
 
   printf("\n Has passed query result start_execution \n");
 
-  if (!thd->has_rerun) {
+  if (!thd->re_optimize.should_re_optimize()) {
     if (query_result->send_result_set_metadata(
             thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
       return true;
@@ -1765,7 +1762,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
   {
       auto join_cleanup = create_scope_guard([this, thd] {
-      if(!thd->should_re_opt) {
+      if(!thd->re_optimize.should_re_optimize()) {
         for (Query_block *sl = first_query_block(); sl;
              sl = sl->next_query_block()) {
           JOIN *join = sl->join;
@@ -1786,6 +1783,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
     for (;;) {
+      if (thd->re_optimize.should_re_optimize()) break;
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);
 
@@ -1804,14 +1802,13 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       if (query_result->send_data(thd, *fields)) {
         return true;
       }
-      //if(!thd->should_re_opt && !thd->has_rerun)thd->get_stmt_da()->inc_current_row_for_condition();
       thd->get_stmt_da()->inc_current_row_for_condition();
     }
 
     // NOTE: join_cleanup must be done before we send EOF, so that we get the
     // row counts right.
   }
-  if(!thd->has_rerun && thd->should_re_opt) {
+  if(thd->re_optimize.should_re_optimize()) {
       printf("\nRerunning optimizer \n");
 
     for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
@@ -1828,8 +1825,10 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     }
     this->clear_execution();
 
-  for (TABLE *table = thd->open_tables; table; table = table->next) {
-    table->file->ha_external_lock(thd, F_RDLCK);
+  if (!thd->lex->is_explain()) {
+    for (TABLE *table = thd->open_tables; table; table = table->next) {
+      table->file->ha_external_lock(thd, F_RDLCK);
+    }
   }
   //query_result->abort_result_set(thd);
   //query_result->cleanup();
@@ -1849,19 +1848,20 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     */
     this->optimize(thd, /*materialize_destination=*/nullptr,
                      /*create_iterators=*/true, /*finalize_access_paths=*/true);
-    thd->should_re_opt = false;
-    thd->has_rerun = true;
-    thd->send_records_ptr_value = send_records;
+    thd->re_optimize.m_should_re_opt = false;
+    thd->re_optimize.m_has_rerun = true;
     printf("\nRerunning again \n");
     return this->execute(thd);
   }
 
 
   printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
-  if (thd->has_rerun) {
-    thd->has_rerun = false;
-    for (TABLE *table = thd->open_tables; table; table = table->next) {
-      table->file->ha_external_lock(thd, F_UNLCK);
+  if (thd->re_optimize.m_has_rerun) {
+    thd->re_optimize.m_has_rerun = false;
+    if (!thd->lex->is_explain()) {
+      for (TABLE *table = thd->open_tables; table; table = table->next) {
+        table->file->ha_external_lock(thd, F_UNLCK);
+      }
     }
 
     /*
