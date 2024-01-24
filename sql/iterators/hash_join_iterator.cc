@@ -23,6 +23,8 @@
 #include "sql/iterators/hash_join_iterator.h"
 
 #include <assert.h>
+#include <sql/join_optimizer/access_path.h>
+
 #include <algorithm>
 #include <atomic>
 #include <bit>
@@ -542,6 +544,8 @@ bool HashJoinIterator::BuildHashTable() {
         thd()->re_optimize.set_should_re_opt(true);
         thd()->re_optimize.set_re_optimize_actual_rows(&count_build_input_rows);
         thd()->re_optimize.set_re_optimize_access_path(m_base_access_path);
+        printf("HashJoinIterator::inner type: %d, estimated: %f \n", m_base_access_path->hash_join().inner->type, m_base_access_path->hash_join().inner->num_output_rows());
+        printf("HashJoinIterator::outer type: %d, estimated: %f \n", m_base_access_path->hash_join().outer->type, m_base_access_path->hash_join().outer->num_output_rows());
         printf("OH NO! Build row count is not close to estimated build rows in HashJoinIterator (%d/%f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows);
         my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");
         return true;
