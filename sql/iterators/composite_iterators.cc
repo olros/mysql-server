@@ -85,7 +85,7 @@ using std::string;
 using std::vector;
 
 bool FilterIterator::Init() {
-  printf("Init FilterIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
+  // printf("Init FilterIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
   if (m_source->Init()) {
     return true;
   }

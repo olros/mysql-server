@@ -5461,15 +5461,34 @@ AccessPath *CostingReceiver::ProposeAccessPath(
 
       right->set_num_output_rows(m_thd->re_optimize.m_re_optimize_actual_rows);
 
+      // printf("PathComparisonResult::before right->type: %d, %f, %f, %f, %d", right->type, right->cost(), right->init_cost(), right->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
+      //
+      // if (right->type == AccessPath::FILTER) {
+      //   const AccessPath &child = *right->filter().child;
+      //   right->set_init_cost(child.init_cost());
+      //
+      //   const FilterCost filterCost =
+      //       EstimateFilterCost(current_thd, right->num_output_rows(),
+      //                          right->filter().condition, m_query_block);
+      //
+      //   right->set_cost(child.cost() + (right->filter().materialize_subqueries
+      //                                  ? filterCost.cost_if_materialized
+      //                                  : filterCost.cost_if_not_materialized));
+      //   printf("PathComparisonResult::after right->type: %d, %f, %f, %f, %d", right->type, right->cost(), right->init_cost(), right->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
+      // }
+      printf("PathComparisonResult::before cost: %f, %f, %f, %d \n", path->cost(), path->init_cost(), path->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
+
+
       double num_output_rows = FindOutputRowsForJoin(left->num_output_rows(), right->num_output_rows(), path->hash_join().join_predicate);
       double build_cost = right->num_output_rows() * kHashBuildOneRowCost;
       double join_cost = build_cost + left->num_output_rows() * kHashProbeOneRowCost +
                          num_output_rows * kHashReturnOneRowCost;
 
-      double cost = left->cost + right->cost + join_cost;
+      double cost = left->cost() + right->cost() + join_cost;
 
       path->set_num_output_rows(num_output_rows);
-      path->cost = cost;
+      path->set_cost(cost);
+      printf("PathComparisonResult::after cost: %f, %f, %f, %f, %d \n", path->cost(), cost, path->init_cost(), path->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
 
       printf("\n\n\n\n!!!!PathComparisonResult::IDENTICAL!!!!\n\n\n\n");
     }
