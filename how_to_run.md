@@ -19,4 +19,5 @@ Sett test-fasit for ny/eksisterende (snapshot): `./mtr --mem <test-navn> --recor
 
 1. Åpne build-mappe 
    - Start MySQL-server: Kjør `./mysql-test/mtr --mem --start`
+   - Start MySQL-server uten at data slettes når du stopper serveren: Kjør `./mysql-test/mtr --mem --start-dirty`
    - Connect til server: Kjør `./bin/mysql -u root -S <sock>`
