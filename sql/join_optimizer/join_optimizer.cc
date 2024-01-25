@@ -5451,69 +5451,21 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  printf("ProposeAccessPath::type %d \n", path->type);
-  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && m_thd->re_optimize.m_re_optimize_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
-    Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
-    if (m_thd->re_optimize.m_re_optimize_access_path->filter().condition->eq(condition, true)) {
-      printf("Great success \n");
-      const auto actual_rows = m_thd->re_optimize.m_re_optimize_actual_rows;
-      // const auto cost_per_row = path->cost() / path->num_output_rows();
-      // const auto new_cost = cost_per_row * actual_rows;
-      path->set_num_output_rows(actual_rows);
-      // path->set_cost(new_cost);
-    }
-  }
-  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && path->type == AccessPath::HASH_JOIN && false) {
-    const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *m_thd->re_optimize.m_re_optimize_access_path, obsolete_orderings);
-    //printf("PathComparisonResult: %d \n", res);
-    if (m_thd->re_optimize.m_re_optimize_access_path->type == AccessPath::FILTER) {
-      if (path->type == AccessPath::TABLE_SCAN && path->filter_predicates.And(m_thd->re_optimize.m_re_optimize_access_path->filter_predicates)) {
-
-
-
+  if (m_thd->re_optimize.m_access_paths != nullptr) {
+    for (auto [re_opt_access_path, actual_rows] : * m_thd->re_optimize.m_access_paths) {
+      if (re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
+        printf("ProposeAccessPath::filter type %d \n", path->type);
+        Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
+        if (re_opt_access_path->filter().condition->eq(condition, true)) {
+          path->set_num_output_rows(actual_rows);
+        }
+      } else {
+        const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *re_opt_access_path, obsolete_orderings);
+        if (res == PathComparisonResult::IDENTICAL) {
+          printf("ProposeAccessPath::IDENTICAL type %d \n", path->type);
+          path->set_num_output_rows(actual_rows);
+        }
       }
-
-    }
-    if (res == PathComparisonResult::IDENTICAL && m_thd->re_optimize.m_re_optimize_access_path->type == AccessPath::HASH_JOIN) {
-
-      auto left = path->hash_join().outer;
-      auto right = path->hash_join().inner;
-
-      right->set_num_output_rows(m_thd->re_optimize.m_re_optimize_actual_rows);
-
-
-
-      // printf("PathComparisonResult::before right->type: %d, %f, %f, %f, %d", right->type, right->cost(), right->init_cost(), right->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-      //
-      // if (right->type == AccessPath::FILTER) {
-      //   const AccessPath &child = *right->filter().child;
-      //   right->set_init_cost(child.init_cost());
-      //
-      //   const FilterCost filterCost =
-      //       EstimateFilterCost(current_thd, right->num_output_rows(),
-      //                          right->filter().condition, m_query_block);
-      //
-      //   right->set_cost(child.cost() + (right->filter().materialize_subqueries
-      //                                  ? filterCost.cost_if_materialized
-      //                                  : filterCost.cost_if_not_materialized));
-      //   printf("PathComparisonResult::after right->type: %d, %f, %f, %f, %d", right->type, right->cost(), right->init_cost(), right->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-      // }
-      printf("PathComparisonResult::before cost: %f, %f, %f, %d \n", path->cost(), path->init_cost(), path->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-
-
-      double num_output_rows = FindOutputRowsForJoin(left->num_output_rows(), right->num_output_rows(), path->hash_join().join_predicate);
-      path->set_num_output_rows(num_output_rows);
-
-      double build_cost = right->num_output_rows() * kHashBuildOneRowCost;
-      double join_cost = build_cost + left->num_output_rows() * kHashProbeOneRowCost +
-                         num_output_rows * kHashReturnOneRowCost;
-
-      double cost = left->cost() + right->cost() + join_cost;
-
-      // path->set_cost(cost);
-      printf("PathComparisonResult::after cost: %f, %f, %f, %f, %d \n", path->cost(), cost, path->init_cost(), path->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-
-      printf("\n\n\n\n!!!!PathComparisonResult::IDENTICAL!!!!\n\n\n\n");
     }
   }
 
@@ -8050,18 +8002,6 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   // TODO(sgunders): If we are part of e.g. a derived table and are streamed,
   // we might want to keep multiple root paths around for future use, e.g.,
   // if there is a LIMIT higher up.
-  if (false) {
-    Prealloced_array<AccessPath *, 4> new_root_candidates(PSI_NOT_INSTRUMENTED);
-      OrderingSet obsolete_orderings;
-    for (auto root_path : root_candidates) {
-      auto root_path_cost = root_path->cost;
-      UpdatePlan(thd, root_path, join, &orderings, &obsolete_orderings, &root_path_cost);
-      root_path->cost = root_path_cost;
-      receiver.ProposeAccessPath(root_path, &new_root_candidates,
-                                 /*obsolete_orderings=*/obsolete_orderings, "");
-      root_candidates = std::move(new_root_candidates);
-    }
-  }
   AccessPath *root_path =
       *std::min_element(root_candidates.begin(), root_candidates.end(),
                         [](const AccessPath *a, const AccessPath *b) {
@@ -8081,7 +8021,6 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
       return nullptr;
     }
   }
-
   // Materialize the result if a top-level query block has the SQL_BUFFER_RESULT
   // option, and the chosen root path isn't already a materialization path. Skip
   // the materialization path when using an external executor, since it will
@@ -8158,8 +8097,6 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
     case AccessPath::NESTED_LOOP_JOIN: {
       InsertMaterializeNodes(thd, path->nested_loop_join().outer, join, level + 1);
       InsertMaterializeNodes(thd, path->nested_loop_join().inner, join, level + 1);
-    printf("outer type nested %d", path->nested_loop_join().outer->type);
-    printf("inner type nested %d", path->nested_loop_join().inner->type);
       if (path->nested_loop_join().inner->type == AccessPath::HASH_JOIN ||path->nested_loop_join().inner->type == AccessPath::NESTED_LOOP_JOIN) {
         printf("\n\nhello inner\n");
         AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->nested_loop_join().inner);
@@ -8169,7 +8106,6 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
        path->nested_loop_join().inner = std::move(mat_path);
       }
         if (path->nested_loop_join().outer->type == AccessPath::HASH_JOIN || path->nested_loop_join().outer->type == AccessPath::NESTED_LOOP_JOIN ) {
-          printf("\n\nhello outer\n");
           AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->nested_loop_join().outer);
           AccessPath* mat_path =
             CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
@@ -8189,10 +8125,7 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
     case AccessPath::HASH_JOIN: {
       InsertMaterializeNodes(thd, path->hash_join().outer, join, level + 1);
       InsertMaterializeNodes(thd, path->hash_join().inner, join, level + 1);
-      printf("outer type hash %d", path->hash_join().outer->type);
-      printf("inner type hash %d", path->hash_join().inner->type);
       if (path->hash_join().inner->type == AccessPath::HASH_JOIN ||path->hash_join().inner->type == AccessPath::NESTED_LOOP_JOIN) {
-        printf("\n\nhello inner\n");
         AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->hash_join().inner);
         AccessPath* mat_path =
           CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
@@ -8201,7 +8134,6 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
       }
 
       if (path->hash_join().outer->type == AccessPath::HASH_JOIN ||path->hash_join().outer->type == AccessPath::NESTED_LOOP_JOIN) {
-        printf("\n\nhello outer\n");
         AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->hash_join().outer);
         AccessPath* mat_path =
           CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
@@ -8212,159 +8144,5 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
       break;
     default:
       break;
-  }
-}
-void UpdatePlan(THD* thd, AccessPath* path, JOIN* join, LogicalOrderings* orderings, OrderingSet* obsolete_orderings, double * root_path_cost) {
-
-
-  switch (path->type) {
-    case AccessPath::TABLE_SCAN:
-    case AccessPath::INDEX_SCAN:
-    case AccessPath::REF:
-    case AccessPath::REF_OR_NULL:
-    case AccessPath::EQ_REF:
-    case AccessPath::PUSHED_JOIN_REF:
-    case AccessPath::FULL_TEXT_SEARCH:
-    case AccessPath::CONST_TABLE:
-    case AccessPath::MRR:
-    case AccessPath::FOLLOW_TAIL:
-    case AccessPath::INDEX_RANGE_SCAN:
-    case AccessPath::INDEX_SKIP_SCAN:
-    case AccessPath::GROUP_INDEX_SKIP_SCAN:
-    case AccessPath::DYNAMIC_INDEX_RANGE_SCAN:
-    case AccessPath::TABLE_VALUE_CONSTRUCTOR:
-    case AccessPath::FAKE_SINGLE_ROW:
-    case AccessPath::ZERO_ROWS:
-    case AccessPath::ZERO_ROWS_AGGREGATED:
-    case AccessPath::MATERIALIZED_TABLE_FUNCTION:
-    case AccessPath::UNQUALIFIED_COUNT:
-      // No children.
-      break;
-    case AccessPath::NESTED_LOOP_JOIN:
-      UpdatePlan(thd, path->nested_loop_join().outer, join, orderings, obsolete_orderings, root_path_cost);
-      UpdatePlan(thd, path->nested_loop_join().inner, join, orderings, obsolete_orderings, root_path_cost);
-
-      break;
-    case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL:
-      UpdatePlan(thd, path->nested_loop_semijoin_with_duplicate_removal().outer,
-                      join,orderings, obsolete_orderings, root_path_cost
-                      );
-      UpdatePlan(thd, path->nested_loop_semijoin_with_duplicate_removal().inner, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::BKA_JOIN:
-      UpdatePlan(thd, path->bka_join().outer, join, orderings, obsolete_orderings, root_path_cost);
-      UpdatePlan(thd, path->bka_join().inner, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::HASH_JOIN: {
-      PathComparisonResult res = CompareAccessPaths(*orderings, *path, *thd->re_optimize.m_re_optimize_access_path, *obsolete_orderings);
-      if (res == PathComparisonResult::IDENTICAL) {
-        auto left = path->hash_join().outer;
-        auto right = path->hash_join().inner;
-
-        right->set_num_output_rows(thd->re_optimize.m_re_optimize_actual_rows);
-        UpdatePlan(thd, path->hash_join().outer, join, orderings, obsolete_orderings, root_path_cost);
-        UpdatePlan(thd, path->hash_join().inner, join, orderings, obsolete_orderings, root_path_cost);
-        double num_output_rows = FindOutputRowsForJoin(left->num_output_rows(), right->num_output_rows(), path->hash_join().join_predicate);
-        double build_cost = right->num_output_rows() * kHashBuildOneRowCost;
-        double join_cost = build_cost + left->num_output_rows() * kHashProbeOneRowCost +
-                           num_output_rows * kHashReturnOneRowCost;
-
-        double cost = left->cost + right->cost + join_cost;
-        path->set_num_output_rows(num_output_rows);
-        *root_path_cost -= path->cost;
-        path->cost = cost;
-        *root_path_cost += path->cost;
-      } else {
-        UpdatePlan(thd, path->hash_join().outer, join, orderings, obsolete_orderings, root_path_cost);
-        UpdatePlan(thd, path->hash_join().inner, join, orderings, obsolete_orderings, root_path_cost);
-      }
-    }
-      break;
-    case AccessPath::FILTER: {
-      UpdatePlan(thd, path->filter().child, join, orderings, obsolete_orderings, root_path_cost);
-      const AccessPath &child = *path->filter().child;
-      path->init_cost = (child.init_cost);
-
-      const FilterCost filterCost =
-          EstimateFilterCost(thd, path->num_output_rows(),
-                             path->filter().condition, join->query_block);
-
-      path->cost = (child.cost + (path->filter().materialize_subqueries
-                                     ? filterCost.cost_if_materialized
-                                     : filterCost.cost_if_not_materialized));
-    }
-      break;
-    case AccessPath::SORT:
-      UpdatePlan(thd, path->sort().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::AGGREGATE:
-      UpdatePlan(thd, path->aggregate().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::TEMPTABLE_AGGREGATE:
-      UpdatePlan(thd, path->temptable_aggregate().subquery_path, join, orderings, obsolete_orderings, root_path_cost);
-      UpdatePlan(thd, path->temptable_aggregate().table_path, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::LIMIT_OFFSET:
-      UpdatePlan(thd, path->limit_offset().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::STREAM:
-        UpdatePlan(thd, path->stream().child, path->stream().join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::MATERIALIZE:
-      UpdatePlan(thd, path->materialize().table_path, join, orderings, obsolete_orderings, root_path_cost);
-      for (const MaterializePathParameters::Operand &operand :
-           path->materialize().param->m_operands) {
-          UpdatePlan(thd, operand.subquery_path, operand.join, orderings, obsolete_orderings, root_path_cost);
-      }
-      break;
-    case AccessPath::MATERIALIZE_INFORMATION_SCHEMA_TABLE:
-      UpdatePlan(thd, path->materialize_information_schema_table().table_path, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::APPEND:
-        for (const AppendPathParameters &child : *path->append().children) {
-          UpdatePlan(thd, child.path, child.join, orderings, obsolete_orderings, root_path_cost);
-      }
-      break;
-    case AccessPath::WINDOW:
-      UpdatePlan(thd, path->window().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::WEEDOUT:
-      UpdatePlan(thd, path->weedout().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::REMOVE_DUPLICATES:
-      UpdatePlan(thd, path->remove_duplicates().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::REMOVE_DUPLICATES_ON_INDEX:
-      UpdatePlan(thd, path->remove_duplicates_on_index().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::ALTERNATIVE:
-      UpdatePlan(thd, path->alternative().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::CACHE_INVALIDATOR:
-      UpdatePlan(thd, path->cache_invalidator().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::INDEX_MERGE:
-      for (AccessPath *child : *path->index_merge().children) {
-        UpdatePlan(thd, child, join, orderings, obsolete_orderings, root_path_cost);
-      }
-      break;
-    case AccessPath::ROWID_INTERSECTION:
-      for (AccessPath *child : *path->rowid_intersection().children) {
-        UpdatePlan(thd, child, join, orderings, obsolete_orderings, root_path_cost);
-      }
-      break;
-    case AccessPath::ROWID_UNION:
-      for (AccessPath *child : *path->rowid_union().children) {
-        UpdatePlan(thd, child, join, orderings, obsolete_orderings, root_path_cost);
-      }
-      break;
-    case AccessPath::DELETE_ROWS:
-      UpdatePlan(thd, path->delete_rows().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-    case AccessPath::UPDATE_ROWS:
-      UpdatePlan(thd, path->update_rows().child, join, orderings, obsolete_orderings, root_path_cost);
-      break;
-  default:
-    break;
   }
 }

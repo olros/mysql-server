@@ -157,7 +157,6 @@ void FindSargablePredicates(THD *thd, std::string *trace,
 void EstimateAggregateCost(AccessPath *path);
 void EstimateMaterializeCost(THD *thd, AccessPath *path);
 void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN* join, int level);
-void UpdatePlan(THD* thd, AccessPath* path, JOIN* join, LogicalOrderings* orderings, OrderingSet* obsolete_orderings, double * root_path_cost);
 
 
 #endif  // SQL_JOIN_OPTIMIZER_JOIN_OPTIMIZER_H

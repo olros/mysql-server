@@ -84,12 +84,42 @@ using std::any_of;
 using std::string;
 using std::vector;
 
-bool FilterIterator::Init() {
-  // printf("Init FilterIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
-  if (m_source->Init()) {
-    return true;
+int CheckIterator::Read() {
+  for (;;) {
+    int err = m_source->Read();
+    if (err == 0 && m_should_count) {
+      m_found_count += 1;
+    }
+    if (err == -1) {
+      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && (m_found_count > m_access_path->num_output_rows() * 2 || m_found_count < m_access_path->num_output_rows() * 0.9)) {
+        const auto pair = std::make_pair(m_access_path, m_found_count);
+        if (thd()->re_optimize.m_access_paths == nullptr) {
+          thd()->re_optimize.m_access_paths = new mem_root_deque<std::pair<AccessPath *, int>>(thd()->mem_root);
+        }
+        thd()->re_optimize.m_access_paths->push_back(pair);
+        if (m_throw_if_wrong_cardinality) {
+          thd()->re_optimize.set_should_re_opt(true);
+          // thd()->re_optimize.set_re_optimize_actual_rows(&m_found_count);
+          // thd()->re_optimize.set_re_optimize_access_path(m_access_path);
+          printf("OH NO! Found count is more than estimated rows in CheckIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows());
+          my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");
+          return true;
+        }
+      }
+    }
+    if (err != 0) return err;
+
+    if (thd()->killed) {
+      thd()->send_kill_message();
+      return 1;
+    }
+
+    /* check for errors evaluating the condition */
+    if (thd()->is_error()) return 1;
+
+    // Successful row.
+    return 0;
   }
-  return false;
 }
 
 int FilterIterator::Read() {
@@ -110,11 +140,6 @@ int FilterIterator::Read() {
     if (!matched) {
       m_source->UnlockRow();
       continue;
-    }
-
-    m_found_count += 1;
-    if (m_found_count > estimated_rows_for_iterator) {
-      // printf("OH NO! Found count is more than estimated rows in FilterIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, estimated_rows_for_iterator);
     }
 
     // Successful row.

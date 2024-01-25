@@ -527,33 +527,15 @@ bool HashJoinIterator::BuildHashTable() {
   const bool reject_duplicate_keys = RejectDuplicateKeys();
 
   PFSBatchMode batch_mode(m_build_input.get());
-  int count_build_input_rows = 0;
   for (;;) {  // Termination condition within loop.
     int res = m_build_input->Read();
-    if (res == 0 && thd()->re_optimize.m_should_re_opt_hint) {
-      count_build_input_rows += 1;
-    }
-    // printf("HashJoinIterator::BuildHashTable() count_build_input_rows/estimated: %d/%f \n", count_build_input_rows, m_estimated_build_rows);
     if (res == 1) {
       assert(thd()->is_error() ||
              thd()->killed);  // my_error should have been called.
       return true;
     }
 
-    // Kommer ikke hit hvis det er for mange rader
     if (res == -1) {
-      printf("Build row count in HashJoinIterator: %d/%f (%d, %d) 🚀\n", count_build_input_rows, m_estimated_build_rows, thd()->re_optimize.m_should_re_opt_hint, !thd()->re_optimize.m_has_rerun);
-      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && (count_build_input_rows > m_estimated_build_rows * 1.1 || count_build_input_rows < m_estimated_build_rows * 0.9)) {
-        thd()->re_optimize.set_should_re_opt(true);
-        thd()->re_optimize.set_re_optimize_actual_rows(&count_build_input_rows);
-        // thd()->re_optimize.set_re_optimize_access_path(m_base_access_path);
-        thd()->re_optimize.set_re_optimize_access_path(m_base_access_path->hash_join().inner);
-        printf("HashJoinIterator::inner type: %d, estimated: %f \n", m_base_access_path->hash_join().inner->type, m_base_access_path->hash_join().inner->num_output_rows());
-        printf("HashJoinIterator::outer type: %d, estimated: %f \n", m_base_access_path->hash_join().outer->type, m_base_access_path->hash_join().outer->num_output_rows());
-        printf("OH NO! Build row count is not close to estimated build rows in HashJoinIterator (%d/%f). Pls re-optimize 🚀\n", count_build_input_rows, m_estimated_build_rows);
-        my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");
-        return true;
-      }
       m_build_iterator_has_more_rows = false;
       // If the build input was empty, the result of inner joins and semijoins
       // will also be empty. However, if the build input was empty, the output
@@ -577,11 +559,6 @@ bool HashJoinIterator::BuildHashTable() {
 
     const hash_join_buffer::StoreRowResult store_row_result =
         m_row_buffer.StoreRow(thd(), reject_duplicate_keys);
-
-    // printf("HashJoinIterator::BuildHashTable() m_row_buffer.size/estimated: %lu/%f \n", m_row_buffer.size(), m_estimated_build_rows);
-    // if (static_cast<float>(m_row_buffer.size()) > m_estimated_build_rows) {
-    //   printf("OH NO! Build row count is more than estimated build rows in HashJoinIterator (%lu/%f). Pls re-optimize 🚀\n", m_row_buffer.size(), m_estimated_build_rows);
-    // }
 
     switch (store_row_result) {
       case hash_join_buffer::StoreRowResult::ROW_STORED:
