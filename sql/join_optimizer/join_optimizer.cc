@@ -5451,7 +5451,19 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && path->type == AccessPath::HASH_JOIN) {
+  printf("ProposeAccessPath::type %d \n", path->type);
+  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && m_thd->re_optimize.m_re_optimize_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
+    Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
+    if (m_thd->re_optimize.m_re_optimize_access_path->filter().condition->eq(condition, true)) {
+      printf("Great success \n");
+      const auto actual_rows = m_thd->re_optimize.m_re_optimize_actual_rows;
+      // const auto cost_per_row = path->cost() / path->num_output_rows();
+      // const auto new_cost = cost_per_row * actual_rows;
+      path->set_num_output_rows(actual_rows);
+      // path->set_cost(new_cost);
+    }
+  }
+  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && path->type == AccessPath::HASH_JOIN && false) {
     const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *m_thd->re_optimize.m_re_optimize_access_path, obsolete_orderings);
     printf("PathComparisonResult: %d \n", res);
     if (res == PathComparisonResult::IDENTICAL) {
@@ -5460,6 +5472,8 @@ AccessPath *CostingReceiver::ProposeAccessPath(
       auto right = path->hash_join().inner;
 
       right->set_num_output_rows(m_thd->re_optimize.m_re_optimize_actual_rows);
+
+
 
       // printf("PathComparisonResult::before right->type: %d, %f, %f, %f, %d", right->type, right->cost(), right->init_cost(), right->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
       //
@@ -6348,6 +6362,7 @@ void ApplyHavingOrQualifyCondition(
   Prealloced_array<AccessPath *, 4> new_root_candidates(PSI_NOT_INSTRUMENTED);
   for (AccessPath *root_path : *root_candidates) {
     AccessPath filter_path;
+    printf("SUPERTEST ApplyHavingOrQualifyCondition::1 \n");
     filter_path.type = AccessPath::FILTER;
     filter_path.filter().child = root_path;
     filter_path.filter().condition = having_cond;

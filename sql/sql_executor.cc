@@ -1465,6 +1465,7 @@ static Substructure FindSubstructure(
 
 static bool IsTableScan(AccessPath *path) {
   if (path->type == AccessPath::FILTER) {
+    printf("SUPERTEST IsTableScan::1 \n");
     return IsTableScan(path->filter().child);
   }
   return path->type == AccessPath::TABLE_SCAN;
@@ -1486,6 +1487,7 @@ static void RecalculateTablePathCost(AccessPath *path,
                                      const Query_block &outer_query_block) {
   switch (path->type) {
     case AccessPath::FILTER: {
+      printf("SUPERTEST RecalculateTablePathCost::1 \n");
       const AccessPath &child = *path->filter().child;
       path->set_num_output_rows(child.num_output_rows());
       path->set_init_cost(child.init_cost());
@@ -1586,6 +1588,7 @@ AccessPath *MoveCompositeIteratorsFromTablePath(
 
     switch (bottom_of_table_path->type) {
       case AccessPath::FILTER:
+        printf("SUPERTEST MoveCompositeIteratorsFromTablePath::1 \n");
         bottom_of_table_path->filter().child = path;
         break;
       case AccessPath::SORT:
