@@ -1,3 +1,4 @@
+SET GLOBAL local_infile=1;
 SET optimizer_switch='hypergraph_optimizer=on';
 SET cte_max_recursion_depth = 1000000;
 create database tmp;

@@ -965,10 +965,11 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                 ? HashJoinInput::kProbe
                 : HashJoinInput::kBuild;
 
-        // AccessPath *build_access_path = first_input == HashJoinInput::kBuild ? param.outer : param.inner;
+        auto innerIterator = NewIterator<CheckIterator>(
+            thd, mem_root, std::move(job.children[1]), true, true, param.inner);
 
-        iterator = NewIterator<HashJoinIterator>(
-            thd, mem_root, std::move(job.children[1]),
+        auto hashJoinIterator = NewIterator<HashJoinIterator>(
+            thd, mem_root, std::move(innerIterator),
             GetUsedTables(param.inner, /*include_pruned_tables=*/true),
             estimated_build_rows, std::move(job.children[0]),
             GetUsedTables(param.outer, /*include_pruned_tables=*/true),
@@ -977,6 +978,10 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             param.allow_spill_to_disk, join_type, *extra_conditions,
             first_input, probe_input_batch_mode, hash_table_generation,
             path);
+
+       iterator = NewIterator<CheckIterator>(
+            thd, mem_root, std::move(hashJoinIterator), true, false, path);
+
         break;
       }
       case AccessPath::FILTER: {
@@ -992,15 +997,10 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
         if (FinalizeMaterializedSubqueries(thd, join, path)) {
           return nullptr;
         }
-        iterator = NewIterator<FilterIterator>(
+        auto filteriterator = NewIterator<FilterIterator>(
             thd, mem_root, std::move(job.children[0]), param.condition, path->num_output_rows());
-        // Mem_root_array<materialize_iterator::Operand> operands(
-            // thd->mem_root, param.m_operands.size());
-        // JOIN *subjoin = param.ref_slice == -1 ? nullptr : operands[0].join;
-        // iterator = unique_ptr_destroy_only<RowIterator>(
-            // materialize_iterator::CreateIterator(
-                // thd, std::move(operands), *param, std::move(iterator),
-                // subjoin));
+        iterator = NewIterator<CheckIterator>(
+            thd, mem_root, std::move(filteriterator), true, false, path);
         break;
       }
       case AccessPath::SORT: {
@@ -1622,30 +1622,6 @@ void ExpandSingleFilterAccessPath(THD *thd, AccessPath *path, const JOIN *join,
   path->filter().child = new_path;
   path->has_group_skip_scan = new_path->has_group_skip_scan;
   path->filter().materialize_subqueries = false;
-
-  // Generisk for å oppdatere filter num_of_rows. Oppdatering av cost fører til lavere cost enn opprinnelig selv om antall rader er flere en første estimat :(
-
-  if (thd->re_optimize.m_re_optimize_access_path != nullptr && thd->re_optimize.m_re_optimize_access_path->type == AccessPath::FILTER && false) {
-    printf("thd->re_optimize.m_re_optimize_access_path::type: %d, %f, %f, %f, %f \n", thd->re_optimize.m_re_optimize_access_path->type, path->num_output_rows(), path->cost(), thd->re_optimize.m_re_optimize_access_path->num_output_rows(), thd->re_optimize.m_re_optimize_access_path->cost());
-    if (thd->re_optimize.m_re_optimize_access_path->filter().condition->eq(path->filter().condition, true)) {
-      const auto actual_rows = thd->re_optimize.m_re_optimize_actual_rows;
-      printf("EQ::true, %d\n", actual_rows);
-      const auto cost_per_row = path->cost() / path->num_output_rows();
-      const auto new_cost = cost_per_row * actual_rows;
-      path->set_num_output_rows(actual_rows);
-      path->set_cost(new_cost);
-      // const FilterCost filterCost = EstimateFilterCost(thd, path->num_output_rows(), path->filter().condition, join->query_block);
-      // path->set_cost(path->filter().child->cost() + filterCost.cost_if_not_materialized);
-      printf("EQ::true, new cost: %f \n", path->cost());
-    }
-  }
-  // if (thd->re_optimize.m_re_optimize_access_path != nullptr && path->type == AccessPath::HASH_JOIN) {
-    // const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *thd->re_optimize.m_re_optimize_access_path, obsolete_orderings);
-    // printf("PathComparisonResult: %d \n", res);
-    // auto optimize_path = *thd->re_optimize.m_re_optimize_access_path;
-    // if () {
-    // }
-  // }
 
   // Clear filter_predicates, but keep applied_sargable_join_predicates.
   MutableOverflowBitset applied_sargable_join_predicates =

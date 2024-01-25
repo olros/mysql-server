@@ -5451,61 +5451,21 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  printf("ProposeAccessPath::type %d \n", path->type);
-  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && m_thd->re_optimize.m_re_optimize_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
-    Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
-    if (m_thd->re_optimize.m_re_optimize_access_path->filter().condition->eq(condition, true)) {
-      printf("Great success \n");
-      const auto actual_rows = m_thd->re_optimize.m_re_optimize_actual_rows;
-      // const auto cost_per_row = path->cost() / path->num_output_rows();
-      // const auto new_cost = cost_per_row * actual_rows;
-      path->set_num_output_rows(actual_rows);
-      // path->set_cost(new_cost);
-    }
-  }
-  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr && path->type == AccessPath::HASH_JOIN && false) {
-    const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *m_thd->re_optimize.m_re_optimize_access_path, obsolete_orderings);
-    printf("PathComparisonResult: %d \n", res);
-    if (res == PathComparisonResult::IDENTICAL) {
-
-      auto left = path->hash_join().outer;
-      auto right = path->hash_join().inner;
-
-      right->set_num_output_rows(m_thd->re_optimize.m_re_optimize_actual_rows);
-
-
-
-      // printf("PathComparisonResult::before right->type: %d, %f, %f, %f, %d", right->type, right->cost(), right->init_cost(), right->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-      //
-      // if (right->type == AccessPath::FILTER) {
-      //   const AccessPath &child = *right->filter().child;
-      //   right->set_init_cost(child.init_cost());
-      //
-      //   const FilterCost filterCost =
-      //       EstimateFilterCost(current_thd, right->num_output_rows(),
-      //                          right->filter().condition, m_query_block);
-      //
-      //   right->set_cost(child.cost() + (right->filter().materialize_subqueries
-      //                                  ? filterCost.cost_if_materialized
-      //                                  : filterCost.cost_if_not_materialized));
-      //   printf("PathComparisonResult::after right->type: %d, %f, %f, %f, %d", right->type, right->cost(), right->init_cost(), right->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-      // }
-      printf("PathComparisonResult::before cost: %f, %f, %f, %d \n", path->cost(), path->init_cost(), path->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-
-
-      double num_output_rows = FindOutputRowsForJoin(left->num_output_rows(), right->num_output_rows(), path->hash_join().join_predicate);
-      path->set_num_output_rows(num_output_rows);
-
-      double build_cost = right->num_output_rows() * kHashBuildOneRowCost;
-      double join_cost = build_cost + left->num_output_rows() * kHashProbeOneRowCost +
-                         num_output_rows * kHashReturnOneRowCost;
-
-      double cost = left->cost() + right->cost() + join_cost;
-
-      // path->set_cost(cost);
-      printf("PathComparisonResult::after cost: %f, %f, %f, %f, %d \n", path->cost(), cost, path->init_cost(), path->num_output_rows(), m_thd->re_optimize.m_re_optimize_actual_rows);
-
-      printf("\n\n\n\n!!!!PathComparisonResult::IDENTICAL!!!!\n\n\n\n");
+  if (m_thd->re_optimize.m_access_paths != nullptr) {
+    for (auto [re_opt_access_path, actual_rows] : * m_thd->re_optimize.m_access_paths) {
+      if (re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
+        printf("ProposeAccessPath::filter type %d \n", path->type);
+        Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
+        if (re_opt_access_path->filter().condition->eq(condition, true)) {
+          path->set_num_output_rows(actual_rows);
+        }
+      } else {
+        const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *re_opt_access_path, obsolete_orderings);
+        if (res == PathComparisonResult::IDENTICAL) {
+          printf("ProposeAccessPath::IDENTICAL type %d \n", path->type);
+          path->set_num_output_rows(actual_rows);
+        }
+      }
     }
   }
 

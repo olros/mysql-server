@@ -1055,23 +1055,18 @@ class THD : public MDL_context_owner,
   */
   class Re_Optimize {
   public:
-    AccessPath *m_re_optimize_access_path = nullptr;
-    int m_re_optimize_actual_rows = -1;
+    mem_root_deque<std::pair<AccessPath *, int>> *m_access_paths = nullptr;
     bool m_has_rerun = false;
     bool m_should_re_opt = false;
     bool m_should_re_opt_hint = false;
 
-    void set_re_optimize_access_path(AccessPath *access_path) { m_re_optimize_access_path = access_path; }
-    void set_re_optimize_actual_rows(const int *num) { m_re_optimize_actual_rows = *num; }
     void set_has_rerun(bool has_rerun) { m_has_rerun = has_rerun; }
     void set_should_re_opt(bool should_re_opt) { m_should_re_opt = should_re_opt; }
     void set_should_re_opt_hint(bool should_re_opt_hint) { m_should_re_opt_hint = should_re_opt_hint; }
 
-    bool should_re_optimize() const { return m_should_re_opt_hint && m_should_re_opt && !m_has_rerun && m_re_optimize_access_path != nullptr; }
+    bool should_re_optimize() const { return m_should_re_opt_hint && m_should_re_opt && !m_has_rerun && m_access_paths != nullptr; }
 
     void reset() {
-      m_re_optimize_access_path = nullptr;
-      m_re_optimize_actual_rows = -1;
       m_has_rerun = false;
       m_should_re_opt = false;
       m_should_re_opt_hint = false;

@@ -84,14 +84,46 @@ struct TABLE;
   meet some criteria (i.e., a condition evaluates to true). This is typically
   used for WHERE/HAVING.
  */
+class CheckIterator final : public RowIterator {
+public:
+  CheckIterator(THD *thd, unique_ptr_destroy_only<RowIterator> source,
+                 bool should_count, bool throw_if_wrong_cardinality, AccessPath *access_path)
+      : RowIterator(thd), m_source(std::move(source)), m_should_count(should_count), m_throw_if_wrong_cardinality(throw_if_wrong_cardinality), m_access_path(access_path) {}
+
+  bool Init() override { return m_source->Init(); }
+
+  int Read() override;
+
+  void SetNullRowFlag(bool is_null_row) override {
+    m_source->SetNullRowFlag(is_null_row);
+  }
+
+  void StartPSIBatchMode() override { m_source->StartPSIBatchMode(); }
+  void EndPSIBatchModeIfStarted() override {
+    m_source->EndPSIBatchModeIfStarted();
+  }
+  void UnlockRow() override { m_source->UnlockRow(); }
+
+private:
+  unique_ptr_destroy_only<RowIterator> m_source;
+  int m_found_count = 0;
+  bool m_should_count = false;
+  bool m_throw_if_wrong_cardinality = false;
+  AccessPath *m_access_path;
+};
+
+/**
+  An iterator that takes in a stream of rows and passes through only those that
+  meet some criteria (i.e., a condition evaluates to true). This is typically
+  used for WHERE/HAVING.
+ */
 class FilterIterator final : public RowIterator {
  public:
   FilterIterator(THD *thd, unique_ptr_destroy_only<RowIterator> source,
                  Item *condition, double estimated_rows_for_iterator = -1.0)
       : RowIterator(thd), m_source(std::move(source)), m_condition(condition), estimated_rows_for_iterator(estimated_rows_for_iterator) {}
 
-  // bool Init() override { return m_source->Init(); }
-  bool Init() override;
+  bool Init() override { return m_source->Init(); }
 
   int Read() override;
 

@@ -826,9 +826,9 @@ err:
   assert(thd->is_error() || thd->killed);
   DBUG_PRINT("info", ("report_error: %d", thd->is_error()));
   THD_STAGE_INFO(thd, stage_end);
-  printf("thd->m_re_optimize_error_msg \n");
-  printf("re_optimize_actual_rows: %d \n", thd->re_optimize.m_re_optimize_actual_rows);
-  printf("re_optimize_estimated_rows: %f \n", thd->re_optimize.m_re_optimize_access_path->num_output_rows());
+  // printf("thd->m_re_optimize_error_msg \n");
+  // printf("re_optimize_actual_rows: %d \n", thd->re_optimize.m_re_optimize_actual_rows);
+  // printf("re_optimize_estimated_rows: %f \n", thd->re_optimize.m_re_optimize_access_path->num_output_rows());
 
   lex->cleanup(false);
   lex->clear_values_map();
