@@ -51,6 +51,9 @@
 #include "sql/table.h"
 #include "template_utils.h"
 
+
+#include <sql/join_optimizer/access_path.h>
+
 class JOIN;
 
 using hash_join_buffer::LoadBufferRowIntoTableBuffers;

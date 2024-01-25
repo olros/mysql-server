@@ -1130,6 +1130,7 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
                     PrintQueryPlan(0, m_root_access_path, join, is_root_of_join)
                         .c_str())););
 
+
     m_root_iterator = CreateIteratorFromAccessPath(
         thd, m_root_access_path, join, /*eligible_for_batch_mode=*/true);
     if (m_root_iterator == nullptr) {
@@ -1142,7 +1143,7 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
       }
     }
 
-    if (false) {
+    if (true) {
       // This can be useful during debugging.
       // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
       // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
@@ -1783,23 +1784,16 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
         for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
           if (sl->join != nullptr) {
-            sl->join->join_free();
             sl->join->destroy();
             sl->join = nullptr;
           }
         }
         this->clear_execution();
 
-        if (!thd->lex->is_explain()) {
-          for (TABLE *table = thd->open_tables; table; table = table->next) {
-            table->file->ha_external_lock(thd, F_RDLCK);
-          }
-        }
         this->optimize(thd, /*materialize_destination=*/nullptr,
                          /*create_iterators=*/true, /*finalize_access_paths=*/true);
         thd->re_optimize.m_should_re_opt = false;
         thd->re_optimize.m_has_rerun = true;
-        printf("\nRerunning again \n");
         return this->execute(thd);
       }
       return true;
@@ -1835,14 +1829,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   }
 
   printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
-  if (thd->re_optimize.m_has_rerun) {
-    thd->re_optimize.m_has_rerun = false;
-    if (!thd->lex->is_explain()) {
-      for (TABLE *table = thd->open_tables; table; table = table->next) {
-        table->file->ha_external_lock(thd, F_UNLCK);
-      }
-    }
-  }
 
   thd->current_found_rows = *send_records_ptr;
 

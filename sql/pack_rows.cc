@@ -291,6 +291,7 @@ void RequestRowId(const Prealloced_array<Table, 4> &tables,
 
 void PrepareForRequestRowId(const Prealloced_array<Table, 4> &tables,
                             table_map tables_to_get_rowid_for) {
+
   for (const Table &it : tables) {
     if (tables_to_get_rowid_for & it.table->pos_in_table_list->map()) {
       it.table->prepare_for_position();

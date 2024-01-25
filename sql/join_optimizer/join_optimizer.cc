@@ -4114,7 +4114,7 @@ void CostingReceiver::ProposeHashJoin(
     OrderingSet new_obsolete_orderings, bool rewrite_semi_to_inner,
     bool *wrote_trace) {
   // Avoid using hash join
-  // if (true) return;
+  //if (true) return;
   if (!SupportedEngineFlag(SecondaryEngineFlag::SUPPORTS_HASH_JOIN)) return;
 
   if (Overlaps(left_path->parameter_tables, right) ||
@@ -8021,7 +8021,6 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
       return nullptr;
     }
   }
-
   // Materialize the result if a top-level query block has the SQL_BUFFER_RESULT
   // option, and the chosen root path isn't already a materialization path. Skip
   // the materialization path when using an external executor, since it will
@@ -8041,6 +8040,12 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
         CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
+    if(thd->re_optimize.m_should_re_opt_hint) {
+        //InsertMaterializeNodes(thd, root_path, join, 0);
+      //root_path =
+      //  CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
+     //                             /*temp_table_param=*/nullptr, false);
+    }
 
   if (trace != nullptr) {
     *trace += StringPrintf("Final cost is %.1f.\n", root_path->cost());
@@ -8085,4 +8090,59 @@ AccessPath *FindBestQueryPlan(THD *thd, Query_block *query_block,
                                        &next_retry_subgraph_pairs, trace);
   }
   return root_path;
+}
+
+void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
+  switch (path->type) {
+    case AccessPath::NESTED_LOOP_JOIN: {
+      InsertMaterializeNodes(thd, path->nested_loop_join().outer, join, level + 1);
+      InsertMaterializeNodes(thd, path->nested_loop_join().inner, join, level + 1);
+      if (path->nested_loop_join().inner->type == AccessPath::HASH_JOIN ||path->nested_loop_join().inner->type == AccessPath::NESTED_LOOP_JOIN) {
+        printf("\n\nhello inner\n");
+        AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->nested_loop_join().inner);
+        AccessPath* mat_path =
+          CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                    /*temp_table_param=*/nullptr, false);
+       path->nested_loop_join().inner = std::move(mat_path);
+      }
+        if (path->nested_loop_join().outer->type == AccessPath::HASH_JOIN || path->nested_loop_join().outer->type == AccessPath::NESTED_LOOP_JOIN ) {
+          AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->nested_loop_join().outer);
+          AccessPath* mat_path =
+            CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                      /*temp_table_param=*/nullptr, false);
+       path->nested_loop_join().outer = std::move(mat_path);
+        }
+    }
+      break;
+    case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL:
+      InsertMaterializeNodes(thd, path->nested_loop_semijoin_with_duplicate_removal().outer, join, level +1 );
+      InsertMaterializeNodes(thd, path->nested_loop_semijoin_with_duplicate_removal().inner, join, level + 1);
+      break;
+    case AccessPath::BKA_JOIN:
+      InsertMaterializeNodes(thd, path->bka_join().outer, join, level + 1);
+      InsertMaterializeNodes(thd, path->bka_join().inner, join, level + 1);
+      break;
+    case AccessPath::HASH_JOIN: {
+      InsertMaterializeNodes(thd, path->hash_join().outer, join, level + 1);
+      InsertMaterializeNodes(thd, path->hash_join().inner, join, level + 1);
+      if (path->hash_join().inner->type == AccessPath::HASH_JOIN ||path->hash_join().inner->type == AccessPath::NESTED_LOOP_JOIN) {
+        AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->hash_join().inner);
+        AccessPath* mat_path =
+          CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                    /*temp_table_param=*/nullptr, false);
+       path->hash_join().inner = std::move(mat_path);
+      }
+
+      if (path->hash_join().outer->type == AccessPath::HASH_JOIN ||path->hash_join().outer->type == AccessPath::NESTED_LOOP_JOIN) {
+        AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->hash_join().outer);
+        AccessPath* mat_path =
+          CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                    /*temp_table_param=*/nullptr, false);
+       path->hash_join().outer = std::move(mat_path);
+      }
+    }
+      break;
+    default:
+      break;
+  }
 }

@@ -3942,6 +3942,7 @@ class Table_ref {
 
   /// Return table map derived from table number
   table_map map() const {
+    DBUG_TRACE;
     assert(((table_map)1 << m_tableno) == m_map);
     return m_map;
   }
