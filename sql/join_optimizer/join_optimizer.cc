@@ -5278,10 +5278,18 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  if (false) {
+  if (m_thd->re_optimize.m_re_optimize_access_path != nullptr) {
     const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *m_thd->re_optimize.m_re_optimize_access_path, obsolete_orderings);
     //printf("PathComparisonResult: %d \n", res);
-    if (res == PathComparisonResult::IDENTICAL) {
+    if (m_thd->re_optimize.m_re_optimize_access_path->type == AccessPath::FILTER) {
+      if (path->type == AccessPath::TABLE_SCAN && path->filter_predicates.And(m_thd->re_optimize.m_re_optimize_access_path->filter_predicates)) {
+
+
+
+      }
+
+    }
+    if (res == PathComparisonResult::IDENTICAL && m_thd->re_optimize.m_re_optimize_access_path->type == AccessPath::HASH_JOIN) {
 
       auto left = path->hash_join().outer;
       auto right = path->hash_join().inner;
@@ -7700,7 +7708,7 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   // TODO(sgunders): If we are part of e.g. a derived table and are streamed,
   // we might want to keep multiple root paths around for future use, e.g.,
   // if there is a LIMIT higher up.
-  if (thd->re_optimize.m_re_optimize_access_path != nullptr) {
+  if (false) {
     Prealloced_array<AccessPath *, 4> new_root_candidates(PSI_NOT_INSTRUMENTED);
       OrderingSet obsolete_orderings;
     for (auto root_path : root_candidates) {
@@ -7752,9 +7760,7 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
     if(thd->re_optimize.m_should_re_opt_hint) {
-      printf("mat");
         //InsertMaterializeNodes(thd, root_path, join, 0);
-        printf("new root %d", root_path->type);
       //root_path =
       //  CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
      //                             /*temp_table_param=*/nullptr, false);
@@ -7805,42 +7811,62 @@ AccessPath *FindBestQueryPlan(THD *thd, Query_block *query_block,
   return root_path;
 }
 
-
 void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
   switch (path->type) {
-    case AccessPath::NESTED_LOOP_JOIN:
+    case AccessPath::NESTED_LOOP_JOIN: {
       InsertMaterializeNodes(thd, path->nested_loop_join().outer, join, level + 1);
       InsertMaterializeNodes(thd, path->nested_loop_join().inner, join, level + 1);
-    if(level != 0) {
-      AccessPath* path_copy = new (thd->mem_root) AccessPath(*path);
-      AccessPath* mat_path =
-        CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
-                                  /*temp_table_param=*/nullptr, false);
-      *path = *mat_path;
+    printf("outer type nested %d", path->nested_loop_join().outer->type);
+    printf("inner type nested %d", path->nested_loop_join().inner->type);
+      if (path->nested_loop_join().inner->type == AccessPath::HASH_JOIN ||path->nested_loop_join().inner->type == AccessPath::NESTED_LOOP_JOIN) {
+        printf("\n\nhello inner\n");
+        AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->nested_loop_join().inner);
+        AccessPath* mat_path =
+          CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                    /*temp_table_param=*/nullptr, false);
+       path->nested_loop_join().inner = std::move(mat_path);
+      }
+        if (path->nested_loop_join().outer->type == AccessPath::HASH_JOIN || path->nested_loop_join().outer->type == AccessPath::NESTED_LOOP_JOIN ) {
+          printf("\n\nhello outer\n");
+          AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->nested_loop_join().outer);
+          AccessPath* mat_path =
+            CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                      /*temp_table_param=*/nullptr, false);
+       path->nested_loop_join().outer = std::move(mat_path);
+        }
     }
-      printf("\n mat-nested-loop\n");
       break;
     case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL:
       InsertMaterializeNodes(thd, path->nested_loop_semijoin_with_duplicate_removal().outer, join, level +1 );
       InsertMaterializeNodes(thd, path->nested_loop_semijoin_with_duplicate_removal().inner, join, level + 1);
-      printf("\n mat-nested-bup\n");
       break;
     case AccessPath::BKA_JOIN:
       InsertMaterializeNodes(thd, path->bka_join().outer, join, level + 1);
       InsertMaterializeNodes(thd, path->bka_join().inner, join, level + 1);
-      printf("\n mat-bka \n");
       break;
-    case AccessPath::HASH_JOIN:
+    case AccessPath::HASH_JOIN: {
       InsertMaterializeNodes(thd, path->hash_join().outer, join, level + 1);
       InsertMaterializeNodes(thd, path->hash_join().inner, join, level + 1);
-    if(level != 0) {
-      AccessPath* path_copy = new (thd->mem_root) AccessPath(*path);
-      AccessPath* mat_path =
-        CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
-                                  /*temp_table_param=*/nullptr, false);
-      *path = *mat_path;
+      printf("outer type hash %d", path->hash_join().outer->type);
+      printf("inner type hash %d", path->hash_join().inner->type);
+      if (path->hash_join().inner->type == AccessPath::HASH_JOIN ||path->hash_join().inner->type == AccessPath::NESTED_LOOP_JOIN) {
+        printf("\n\nhello inner\n");
+        AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->hash_join().inner);
+        AccessPath* mat_path =
+          CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                    /*temp_table_param=*/nullptr, false);
+       path->hash_join().inner = std::move(mat_path);
+      }
+
+      if (path->hash_join().outer->type == AccessPath::HASH_JOIN ||path->hash_join().outer->type == AccessPath::NESTED_LOOP_JOIN) {
+        printf("\n\nhello outer\n");
+        AccessPath* path_copy = new (thd->mem_root) AccessPath(*path->hash_join().outer);
+        AccessPath* mat_path =
+          CreateMaterializationPath(thd, join, path_copy, /*temp_table=*/nullptr,
+                                    /*temp_table_param=*/nullptr, false);
+       path->hash_join().outer = std::move(mat_path);
+      }
     }
-      printf("\n mat-hash \n");
       break;
     default:
       break;
@@ -7914,7 +7940,6 @@ void UpdatePlan(THD* thd, AccessPath* path, JOIN* join, LogicalOrderings* orderi
       break;
     case AccessPath::FILTER: {
       UpdatePlan(thd, path->filter().child, join, orderings, obsolete_orderings, root_path_cost);
-      printf("updating filter cost !!!!!!");
       const AccessPath &child = *path->filter().child;
       path->init_cost = (child.init_cost);
 

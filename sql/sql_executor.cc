@@ -3313,6 +3313,7 @@ AccessPath *JOIN::attach_access_paths_for_having_and_limit(
       // We cannot call EstimateFilterCost() in the pre-hypergraph optimizer,
       // as on repeated execution of a prepared query, the condition may contain
       // references to subqueries that are destroyed and not re-optimized yet.
+
       const FilterCost filter_cost = EstimateFilterCost(
           thd, path->num_output_rows(), having_cond, query_block);
 
