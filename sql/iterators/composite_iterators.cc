@@ -502,7 +502,7 @@ void AggregateIterator::SetRollupLevel(int level) {
 }
 
 bool NestedLoopIterator::Init() {
-  printf("Init NestedLoopIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
+  // printf("Init NestedLoopIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
   if (m_source_outer->Init()) {
     return true;
   }

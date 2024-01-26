@@ -528,14 +528,14 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
     switch (path->type) {
       case AccessPath::TABLE_SCAN: {
         const auto &param = path->table_scan();
-        printf("AccessPath::TABLE_SCAN estimated_rows path: %f \n", path->num_output_rows());
+        // printf("AccessPath::TABLE_SCAN estimated_rows path: %f \n", path->num_output_rows());
         iterator = NewIterator<TableScanIterator>(
             thd, mem_root, param.table, path->num_output_rows(), examined_rows);
         break;
       }
       case AccessPath::INDEX_SCAN: {
         const auto &param = path->index_scan();
-        printf("AccessPath::INDEX_SCAN estimated_rows path: %f \n", path->num_output_rows());
+        // printf("AccessPath::INDEX_SCAN estimated_rows path: %f \n", path->num_output_rows());
         if (param.reverse) {
           iterator = NewIterator<IndexScanIterator<true>>(
               thd, mem_root, param.table, param.idx, param.use_order,
@@ -556,7 +556,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       }
       case AccessPath::REF: {
         const auto &param = path->ref();
-        printf("AccessPath::REF estimated_rows path: %f \n", path->num_output_rows());
+        // printf("AccessPath::REF estimated_rows path: %f \n", path->num_output_rows());
         if (param.reverse) {
           iterator = NewIterator<RefIterator<true>>(
               thd, mem_root, param.table, param.ref, param.use_order,
@@ -570,7 +570,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       }
       case AccessPath::REF_OR_NULL: {
         const auto &param = path->ref_or_null();
-        printf("AccessPath::REF_OR_NULL estimated_rows path: %f \n", path->num_output_rows());
+        // printf("AccessPath::REF_OR_NULL estimated_rows path: %f \n", path->num_output_rows());
         iterator = NewIterator<RefOrNullIterator>(
             thd, mem_root, param.table, param.ref, param.use_order,
             path->num_output_rows(), examined_rows);
@@ -578,14 +578,14 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       }
       case AccessPath::EQ_REF: {
         const auto &param = path->eq_ref();
-        printf("AccessPath::EQ_REF estimated_rows path: %f \n", path->num_output_rows());
+        // printf("AccessPath::EQ_REF estimated_rows path: %f \n", path->num_output_rows());
         iterator = NewIterator<EQRefIterator>(thd, mem_root, param.table,
                                               param.ref, examined_rows);
         break;
       }
       case AccessPath::PUSHED_JOIN_REF: {
         const auto &param = path->pushed_join_ref();
-        printf("AccessPath::PUSHED_JOIN_REF estimated_rows path: %f \n", path->num_output_rows());
+        // printf("AccessPath::PUSHED_JOIN_REF estimated_rows path: %f \n", path->num_output_rows());
         iterator = NewIterator<PushedJoinRefIterator>(
             thd, mem_root, param.table, param.ref, param.use_order,
             param.is_unique, examined_rows);
@@ -600,7 +600,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       }
       case AccessPath::CONST_TABLE: {
         const auto &param = path->const_table();
-        printf("AccessPath::CONST_TABLE estimated_rows path: %f \n", path->num_output_rows());
+        // printf("AccessPath::CONST_TABLE estimated_rows path: %f \n", path->num_output_rows());
         iterator = NewIterator<ConstIterator>(thd, mem_root, param.table,
                                               param.ref, examined_rows);
         break;
@@ -828,7 +828,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
           continue;
         }
 
-        printf("AccessPath::NESTED_LOOP_JOIN estimated_rows path: %f, outer: %f, inner: %f \n", path->num_output_rows(), param.outer->num_output_rows(), param.inner->num_output_rows());
+        // printf("AccessPath::NESTED_LOOP_JOIN estimated_rows path: %f, outer: %f, inner: %f \n", path->num_output_rows(), param.outer->num_output_rows(), param.inner->num_output_rows());
         iterator = NewIterator<NestedLoopIterator>(
             thd, mem_root, std::move(job.children[0]),
             std::move(job.children[1]), param.join_type, param.pfs_batch_mode, path->num_output_rows());
@@ -878,7 +878,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
           continue;
         }
 
-        printf("AccessPath::HASH_JOIN estimated_rows path: %f, outer: %f, inner: %f \n", path->num_output_rows(), param.outer->num_output_rows(), param.inner->num_output_rows());
+        // printf("AccessPath::HASH_JOIN estimated_rows path: %f, outer: %f, inner: %f \n", path->num_output_rows(), param.outer->num_output_rows(), param.inner->num_output_rows());
 
         const JoinPredicate *join_predicate = param.join_predicate;
         vector<HashJoinCondition> conditions;
@@ -991,7 +991,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                                eligible_for_batch_mode, &job, &todo);
           continue;
         }
-        printf("AccessPath::FILTER estimated_rows path: %f, child: %f \n", path->num_output_rows(), param.child->num_output_rows());
+        // printf("AccessPath::FILTER estimated_rows path: %f, child: %f \n", path->num_output_rows(), param.child->num_output_rows());
         // Note: this can maybe be used to materialize filters in order to check if the cardinalities are
         // wrong and avoid pipelining at the same time
         if (FinalizeMaterializedSubqueries(thd, join, path)) {
@@ -1011,7 +1011,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
           continue;
         }
 
-        printf("AccessPath::SORT estimated_rows path: %f, child: %f \n", path->num_output_rows(), param.child->num_output_rows());
+        // printf("AccessPath::SORT estimated_rows path: %f, child: %f \n", path->num_output_rows(), param.child->num_output_rows());
 
         ha_rows num_rows_estimate = param.child->num_output_rows() < 0.0
                                         ? HA_POS_ERROR
@@ -1555,7 +1555,7 @@ void ExpandSingleFilterAccessPath(THD *thd, AccessPath *path, const JOIN *join,
     }
     assert(!items.is_empty());
 
-    printf("SUPERTEST ExpandSingleFilterAccessPath::1 \n");
+    // printf("SUPERTEST ExpandSingleFilterAccessPath::1 \n");
     AccessPath *filter_path = new (thd->mem_root) AccessPath;
     filter_path->type = AccessPath::FILTER;
     filter_path->filter().child = right_path;
@@ -1616,7 +1616,7 @@ void ExpandSingleFilterAccessPath(THD *thd, AccessPath *path, const JOIN *join,
   assert(new_path->cost() >= new_path->init_cost());
   assert(new_path->init_cost() >= new_path->init_once_cost());
 
-  printf("SUPERTEST ExpandSingleFilterAccessPath::2 \n");
+  // printf("SUPERTEST ExpandSingleFilterAccessPath::2 \n");
   path->type = AccessPath::FILTER;
   path->filter().condition = condition;
   path->filter().child = new_path;

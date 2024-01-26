@@ -1475,7 +1475,7 @@ inline AccessPath *NewNestedLoopSemiJoinWithDuplicateRemovalAccessPath(
 
 inline AccessPath *NewFilterAccessPath(THD *thd, AccessPath *child,
                                        Item *condition) {
-  printf("SUPERTEST NewFilterAccessPath::1 \n");
+  // printf("SUPERTEST NewFilterAccessPath::1 \n");
   AccessPath *path = new (thd->mem_root) AccessPath;
   path->type = AccessPath::FILTER;
   path->filter().child = child;

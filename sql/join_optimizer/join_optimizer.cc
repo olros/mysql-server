@@ -2963,7 +2963,7 @@ bool CostingReceiver::ProposeTableScan(
     }
   }
 
-  printf("ProposeTableScan %hhd \n", tl->uses_materialization());
+  // printf("ProposeTableScan %hhd \n", tl->uses_materialization());
 
   // See if this is an information schema table that must be filled in before
   // we scan.
@@ -6322,7 +6322,7 @@ void ApplyHavingOrQualifyCondition(
   Prealloced_array<AccessPath *, 4> new_root_candidates(PSI_NOT_INSTRUMENTED);
   for (AccessPath *root_path : *root_candidates) {
     AccessPath filter_path;
-    printf("SUPERTEST ApplyHavingOrQualifyCondition::1 \n");
+    // printf("SUPERTEST ApplyHavingOrQualifyCondition::1 \n");
     filter_path.type = AccessPath::FILTER;
     filter_path.filter().child = root_path;
     filter_path.filter().condition = having_cond;
