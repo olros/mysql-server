@@ -80,9 +80,12 @@ class Temp_table_param;
 struct TABLE;
 
 /**
-  An iterator that takes in a stream of rows and passes through only those that
-  meet some criteria (i.e., a condition evaluates to true). This is typically
-  used for WHERE/HAVING.
+  An iterator that counts rows as they're read and compares it to the exepected number of rows.
+  If activated, an should re-optimize-error is thrown if a significantly wrong cardinality estimate is found.
+  Throwing error should only be activated if the iterator wraps an access path that is naturally materialized,
+  as you risk that outputting rows to the client has already started otherwise.
+  A CheckInterator that is only counting, but not throwing an error will also contribute with correct cardinalities
+  during re-optimization if a check-operator higher up in the tree throws an error.
  */
 class CheckIterator final : public RowIterator {
 public:
@@ -120,8 +123,8 @@ private:
 class FilterIterator final : public RowIterator {
  public:
   FilterIterator(THD *thd, unique_ptr_destroy_only<RowIterator> source,
-                 Item *condition, double estimated_rows_for_iterator = -1.0)
-      : RowIterator(thd), m_source(std::move(source)), m_condition(condition), estimated_rows_for_iterator(estimated_rows_for_iterator) {}
+                 Item *condition)
+      : RowIterator(thd), m_source(std::move(source)), m_condition(condition) {}
 
   bool Init() override { return m_source->Init(); }
 
@@ -140,8 +143,6 @@ class FilterIterator final : public RowIterator {
  private:
   unique_ptr_destroy_only<RowIterator> m_source;
   Item *m_condition;
-  double estimated_rows_for_iterator = -1.0;
-  int m_found_count = 0;
 };
 
 /**
@@ -369,13 +370,12 @@ class NestedLoopIterator final : public RowIterator {
   NestedLoopIterator(THD *thd,
                      unique_ptr_destroy_only<RowIterator> source_outer,
                      unique_ptr_destroy_only<RowIterator> source_inner,
-                     JoinType join_type, bool pfs_batch_mode, double estimated_rows_for_iterator = -1.0)
+                     JoinType join_type, bool pfs_batch_mode)
       : RowIterator(thd),
         m_source_outer(std::move(source_outer)),
         m_source_inner(std::move(source_inner)),
         m_join_type(join_type),
-        m_pfs_batch_mode(pfs_batch_mode),
-        estimated_rows_for_iterator(estimated_rows_for_iterator) {
+        m_pfs_batch_mode(pfs_batch_mode) {
     assert(m_source_outer != nullptr);
     assert(m_source_inner != nullptr);
 
@@ -424,8 +424,6 @@ class NestedLoopIterator final : public RowIterator {
 
   /** Whether to use batch mode when scanning the inner iterator. */
   const bool m_pfs_batch_mode;
-  double estimated_rows_for_iterator = -1.0;
-  int m_found_count = 0;
 };
 
 /**

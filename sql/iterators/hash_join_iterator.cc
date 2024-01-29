@@ -23,8 +23,6 @@
 #include "sql/iterators/hash_join_iterator.h"
 
 #include <assert.h>
-#include <sql/join_optimizer/access_path.h>
-
 #include <algorithm>
 #include <atomic>
 #include <bit>
@@ -70,9 +68,7 @@ HashJoinIterator::HashJoinIterator(
     const std::vector<HashJoinCondition> &join_conditions,
     bool allow_spill_to_disk, JoinType join_type,
     const Mem_root_array<Item *> &extra_conditions, HashJoinInput first_input,
-    bool probe_input_batch_mode, uint64_t *hash_table_generation,
-    AccessPath *base_access_path
-    )
+    bool probe_input_batch_mode, uint64_t *hash_table_generation)
     : RowIterator(thd),
       m_state(State::READING_ROW_FROM_PROBE_ITERATOR),
       m_hash_table_generation(hash_table_generation),
@@ -100,9 +96,7 @@ HashJoinIterator::HashJoinIterator(
               : first_input),
       m_probe_input_batch_mode(probe_input_batch_mode),
       m_allow_spill_to_disk(allow_spill_to_disk),
-      m_join_type(join_type),
-      m_base_access_path(base_access_path)
-{
+      m_join_type(join_type) {
   assert(m_build_input != nullptr);
   assert(m_probe_input != nullptr);
 
@@ -556,7 +550,6 @@ bool HashJoinIterator::BuildHashTable() {
 
     const hash_join_buffer::StoreRowResult store_row_result =
         m_row_buffer.StoreRow(thd(), reject_duplicate_keys);
-
     switch (store_row_result) {
       case hash_join_buffer::StoreRowResult::ROW_STORED:
         break;
