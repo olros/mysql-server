@@ -2963,8 +2963,6 @@ bool CostingReceiver::ProposeTableScan(
     }
   }
 
-  // printf("ProposeTableScan %hhd \n", tl->uses_materialization());
-
   // See if this is an information schema table that must be filled in before
   // we scan.
   if (tl->schema_table != nullptr && tl->schema_table->fill_table) {
@@ -3070,9 +3068,8 @@ bool CostingReceiver::ProposeTableScan(
   }
   assert(path.cost() >= 0.0);
 
-  // AccessPath *materializedPath = CreateMaterializationPath(m_thd, m_query_block->join, new (m_thd->mem_root) AccessPath(path), nullptr, nullptr, true);
-  // ProposeAccessPathForBaseTable(node_idx, force_num_output_rows_after_filter, /*description_for_trace=*/"", materializedPath);
-  ProposeAccessPathForBaseTable(node_idx, force_num_output_rows_after_filter, /*description_for_trace=*/"", &path);
+  ProposeAccessPathForBaseTable(node_idx, force_num_output_rows_after_filter,
+                                /*description_for_trace=*/"", &path);
   return false;
 }
 
@@ -4113,8 +4110,6 @@ void CostingReceiver::ProposeHashJoin(
     const JoinPredicate *edge, FunctionalDependencySet new_fd_set,
     OrderingSet new_obsolete_orderings, bool rewrite_semi_to_inner,
     bool *wrote_trace) {
-  // Avoid using hash join
-  // if (true) return;
   if (!SupportedEngineFlag(SecondaryEngineFlag::SUPPORTS_HASH_JOIN)) return;
 
   if (Overlaps(left_path->parameter_tables, right) ||
@@ -4200,7 +4195,6 @@ void CostingReceiver::ProposeHashJoin(
     }
   }
 
-
   if (edge->expr->type == RelationalExpression::LEFT_JOIN &&
       SecondaryEngineHandlerton(m_thd) != nullptr) {
     MoveDegenerateJoinConditionToFilter(m_thd, m_query_block, &edge,
@@ -4215,7 +4209,6 @@ void CostingReceiver::ProposeHashJoin(
   join_path.parameter_tables =
       (left_path->parameter_tables | right_path->parameter_tables) &
       ~(left | right);
-
   join_path.hash_join().outer = left_path;
   join_path.hash_join().inner = right_path;
   join_path.hash_join().join_predicate = edge;
@@ -4921,8 +4914,6 @@ void CostingReceiver::ProposeNestedLoopJoin(
         description_for_trace = "mat. subq";
       }
     }
-
-    // AccessPath *materializedPath = CreateMaterializationPath(m_thd, m_query_block->join, new (m_thd->mem_root) AccessPath(new_path), nullptr, nullptr, true);
 
     ProposeAccessPathWithOrderings(left | right, new_fd_set | filter_fd_set,
                                    new_obsolete_orderings, &new_path,
@@ -6322,7 +6313,6 @@ void ApplyHavingOrQualifyCondition(
   Prealloced_array<AccessPath *, 4> new_root_candidates(PSI_NOT_INSTRUMENTED);
   for (AccessPath *root_path : *root_candidates) {
     AccessPath filter_path;
-    // printf("SUPERTEST ApplyHavingOrQualifyCondition::1 \n");
     filter_path.type = AccessPath::FILTER;
     filter_path.filter().child = root_path;
     filter_path.filter().condition = having_cond;
@@ -7778,7 +7768,6 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
             } else {
               path.set_cost(path.cost() + cost.cost_if_not_materialized);
             }
-            printf("\n number of output rows %f and selectivity %f \n", path.num_output_rows(), graph.predicates[i].selectivity);
             path.set_num_output_rows(path.num_output_rows() *
                                      graph.predicates[i].selectivity);
           }

@@ -628,7 +628,7 @@ bool JOIN::optimize(bool finalize_access_paths) {
     SaveCondEqualLists(cond_equal);
 
     m_root_access_path = FindBestQueryPlan(thd, query_block, trace_ptr);
-   printf("\n optimizer trace -------\n\n %s\n\n", trace_ptr->c_str());
+   // printf("\n optimizer trace -------\n\n %s\n\n", trace_ptr->c_str());
     if (finalize_access_paths && m_root_access_path != nullptr) {
       if (FinalizePlanForQueryBlock(thd, query_block)) {
         return true;

@@ -970,9 +970,6 @@ class THD : public MDL_context_owner,
   */
   ulong want_privilege;
 
-  mem_root_deque<Item *> *buffer = nullptr;
-  void send_buffer_rows();
-
  private:
   /**
     The lex to hold the parsed tree of conventional (non-prepared) queries.
@@ -1051,7 +1048,8 @@ class THD : public MDL_context_owner,
 
  public:
   /**
-   * Contains re-optimize variables
+   * Re-optimization logic. This include whether re-optimization should be
+   * initiated and found correct cardinalities at given access paths.
   */
   class Re_Optimize {
   public:
@@ -2938,7 +2936,6 @@ class THD : public MDL_context_owner,
   void init_query_mem_roots();
   void cleanup_connection(void);
   void cleanup_after_query();
-  void cleanup_exec();
   void store_globals();
   void restore_globals();
 

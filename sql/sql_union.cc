@@ -98,6 +98,8 @@
 #include "sql/window.h"  // Window
 #include "template_utils.h"
 
+using std::vector;
+
 class Item_rollup_group_item;
 class Item_rollup_sum_switcher;
 class Opt_trace_context;
@@ -1761,8 +1763,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   thd->get_stmt_da()->reset_current_row_for_condition();
 
   {
-      auto join_cleanup = create_scope_guard([this, thd] {
-      if(!thd->re_optimize.should_re_optimize()) {
+    auto join_cleanup = create_scope_guard([this, thd] {
+      if (!thd->re_optimize.should_re_optimize()) {
         for (Query_block *sl = first_query_block(); sl;
              sl = sl->next_query_block()) {
           JOIN *join = sl->join;
@@ -1772,9 +1774,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         if (!is_simple() && set_operation()->m_is_materialized)
           thd->inc_examined_row_count(
               query_term()->query_block()->join->examined_rows);
-
       }
-      });
+    });
 
     if (m_root_iterator->Init()) {
       if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
@@ -1807,11 +1808,11 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     printf("\n has passed root_iterator_init \n");
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
+
     for (;;) {
       if (thd->re_optimize.should_re_optimize()) break;
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);
-
 
       if (error > 0 || thd->is_error())  // Fatal error
         return true;
@@ -1824,6 +1825,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       }
 
       ++*send_records_ptr;
+
       if (query_result->send_data(thd, *fields)) {
         return true;
       }
@@ -1860,10 +1862,10 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 bool Query_expression::execute(THD *thd) {
   DBUG_TRACE;
   assert(is_optimized());
-  printf("Passed is_optimized");
+  printf("Passed is_optimized\n");
 
   if (is_executed() && !uncacheable) return false;
-  printf("Passed is_executed");
+  printf("Passed is_executed\n");
 
   assert(!unfinished_materialization());
 
