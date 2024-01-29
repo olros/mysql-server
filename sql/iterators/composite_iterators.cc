@@ -502,7 +502,6 @@ void AggregateIterator::SetRollupLevel(int level) {
 }
 
 bool NestedLoopIterator::Init() {
-  // printf("Init NestedLoopIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
   if (m_source_outer->Init()) {
     return true;
   }
@@ -514,7 +513,6 @@ bool NestedLoopIterator::Init() {
 }
 
 int NestedLoopIterator::Read() {
-  // printf("\n Start of NestedLoopIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
   if (m_state == END_OF_ROWS) {
     return -1;
   }
@@ -522,8 +520,6 @@ int NestedLoopIterator::Read() {
   for (;;) {  // Termination condition within loop.
     if (m_state == NEEDS_OUTER_ROW) {
       int err = m_source_outer->Read();
-      // printf("\nsuper test m_source_outer->Read() %d \n", err);
-
       if (err == 1) {
         return 1;  // Error.
       }
@@ -588,11 +584,6 @@ int NestedLoopIterator::Read() {
       m_state = NEEDS_OUTER_ROW;
     } else {
       m_state = READING_INNER_ROWS;
-    }
-    m_found_count += 1;
-    // printf("\nsuper test found/estimated: %d/%f \n", m_found_count, estimated_rows_for_iterator);
-    if (m_found_count > estimated_rows_for_iterator) {
-      // printf("OH NO! Found count is more than estimated rows in NestedLoopIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, estimated_rows_for_iterator);
     }
     return 0;
   }
