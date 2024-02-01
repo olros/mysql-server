@@ -54,17 +54,14 @@
 
 
 
-#include "interesting_orders.h"
-
 
 #include <string>
-#include <sql/sql_optimizer.h>
-
 
 class Query_block;
 class THD;
 struct AccessPath;
 struct JoinHypergraph;
+class JOIN;
 
 /**
   The main entry point for the hypergraph join optimizer; takes in a query

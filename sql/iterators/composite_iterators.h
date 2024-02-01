@@ -106,7 +106,7 @@ public:
 
 private:
   unique_ptr_destroy_only<RowIterator> m_source;
-  int m_found_count = 0;
+  double m_found_count = 0.0;
   bool m_should_count = false;
   bool m_throw_if_wrong_cardinality = false;
   AccessPath *m_access_path;

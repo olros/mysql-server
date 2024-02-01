@@ -91,17 +91,24 @@ int CheckIterator::Read() {
       m_found_count += 1;
     }
     if (err == -1) {
-      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && (m_found_count > m_access_path->num_output_rows() * 2 || m_found_count < m_access_path->num_output_rows() * 0.9)) {
+      double actual = std::max(m_found_count, 1.0);
+      double estimate = std::max(m_access_path->num_output_rows(), 1.0);
+      double diff = std::max(actual / estimate, estimate / actual);
+      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && diff >= 42) {
         const auto pair = std::make_pair(m_access_path, m_found_count);
         if (thd()->re_optimize.m_access_paths == nullptr) {
-          thd()->re_optimize.m_access_paths = new mem_root_deque<std::pair<AccessPath *, int>>(thd()->mem_root);
+          thd()->re_optimize.m_access_paths =
+              new mem_root_deque<std::pair<AccessPath *, int>>(thd()->mem_root);
         }
         thd()->re_optimize.m_access_paths->push_back(pair);
         if (m_throw_if_wrong_cardinality) {
           thd()->re_optimize.set_should_re_opt(true);
           // thd()->re_optimize.set_re_optimize_actual_rows(&m_found_count);
           // thd()->re_optimize.set_re_optimize_access_path(m_access_path);
-          printf("OH NO! Found count is more than estimated rows in CheckIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows());
+          printf(
+              "OH NO! Found count is more than estimated rows in CheckIterator "
+              "(%f/%f). Pls re-optimize 🚀\n",
+              m_found_count, m_access_path->num_output_rows());
           my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");
           return true;
         }
@@ -502,7 +509,8 @@ void AggregateIterator::SetRollupLevel(int level) {
 }
 
 bool NestedLoopIterator::Init() {
-  printf("Init NestedLoopIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
+  printf("Init NestedLoopIterator ----- estimated_rows_for_iterator: %f \n",
+         estimated_rows_for_iterator);
   if (m_source_outer->Init()) {
     return true;
   }
@@ -514,7 +522,8 @@ bool NestedLoopIterator::Init() {
 }
 
 int NestedLoopIterator::Read() {
-  // printf("\n Start of NestedLoopIterator ----- estimated_rows_for_iterator: %f \n", estimated_rows_for_iterator);
+  // printf("\n Start of NestedLoopIterator ----- estimated_rows_for_iterator:
+  // %f \n", estimated_rows_for_iterator);
   if (m_state == END_OF_ROWS) {
     return -1;
   }
@@ -590,9 +599,12 @@ int NestedLoopIterator::Read() {
       m_state = READING_INNER_ROWS;
     }
     m_found_count += 1;
-    // printf("\nsuper test found/estimated: %d/%f \n", m_found_count, estimated_rows_for_iterator);
+    // printf("\nsuper test found/estimated: %d/%f \n", m_found_count,
+    // estimated_rows_for_iterator);
     if (m_found_count > estimated_rows_for_iterator) {
-      // printf("OH NO! Found count is more than estimated rows in NestedLoopIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, estimated_rows_for_iterator);
+      // printf("OH NO! Found count is more than estimated rows in
+      // NestedLoopIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count,
+      // estimated_rows_for_iterator);
     }
     return 0;
   }
@@ -2269,6 +2281,7 @@ int MaterializeIterator<Profiler>::Read() {
     }
   }
 
+  printf("reading from mat it \n");
   const int err = m_table_iterator->Read();
   m_table_iter_profiler.StopRead(start_time, err == 0);
   return err;
@@ -3636,7 +3649,7 @@ RemoveDuplicatesOnIndexIterator::RemoveDuplicatesOnIndexIterator(
       m_source(std::move(source)),
       m_table(table),
       m_key(key),
-      m_key_buf(new (thd->mem_root) uchar[key_len]),
+      m_key_buf(new(thd->mem_root) uchar[key_len]),
       m_key_len(key_len) {}
 
 bool RemoveDuplicatesOnIndexIterator::Init() {
@@ -3668,16 +3681,16 @@ int RemoveDuplicatesOnIndexIterator::Read() {
 }
 
 NestedLoopSemiJoinWithDuplicateRemovalIterator::
-    NestedLoopSemiJoinWithDuplicateRemovalIterator(
-        THD *thd, unique_ptr_destroy_only<RowIterator> source_outer,
-        unique_ptr_destroy_only<RowIterator> source_inner, const TABLE *table,
-        KEY *key, size_t key_len)
+NestedLoopSemiJoinWithDuplicateRemovalIterator(
+    THD *thd, unique_ptr_destroy_only<RowIterator> source_outer,
+    unique_ptr_destroy_only<RowIterator> source_inner, const TABLE *table,
+    KEY *key, size_t key_len)
     : RowIterator(thd),
       m_source_outer(std::move(source_outer)),
       m_source_inner(std::move(source_inner)),
       m_table_outer(table),
       m_key(key),
-      m_key_buf(new (thd->mem_root) uchar[key_len]),
+      m_key_buf(new(thd->mem_root) uchar[key_len]),
       m_key_len(key_len) {
   assert(m_source_outer != nullptr);
   assert(m_source_inner != nullptr);
@@ -3747,9 +3760,9 @@ int NestedLoopSemiJoinWithDuplicateRemovalIterator::Read() {
 }
 
 MaterializeInformationSchemaTableIterator::
-    MaterializeInformationSchemaTableIterator(
-        THD *thd, unique_ptr_destroy_only<RowIterator> table_iterator,
-        Table_ref *table_list, Item *condition)
+MaterializeInformationSchemaTableIterator(
+    THD *thd, unique_ptr_destroy_only<RowIterator> table_iterator,
+    Table_ref *table_list, Item *condition)
     : RowIterator(thd),
       m_table_iterator(std::move(table_iterator)),
       m_table_list(table_list),
