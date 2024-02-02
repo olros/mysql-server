@@ -1144,7 +1144,7 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
       }
     }
 
-    if (false) {
+    if (true) {
       // This can be useful during debugging.
       // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
       // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
@@ -1783,12 +1783,15 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         thd->clear_error();
         printf("\nRerunning optimizer \n");
 
+        this->clear_root_access_path();
+        // this->cleanup(true);
         for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
           if (sl->join != nullptr) {
             sl->join->join_free();
             sl->join->destroy();
             sl->join = nullptr;
           }
+          sl->cleanup(true);
         }
         this->clear_execution();
 

@@ -104,7 +104,7 @@ int CheckIterator::Read() {
         if (m_throw_if_wrong_cardinality) {
           printf("CheckIterator::plan_level_progress_percentage: %f (%d/%d)\n", diff, m_plan_level, thd()->re_optimize.m_num_of_plan_levels);
         }
-        if (m_throw_if_wrong_cardinality && diff >= 2) {
+        if (m_throw_if_wrong_cardinality && diff >= 10) {
           thd()->re_optimize.set_should_re_opt(true);
           printf("OH NO! Found count is more than estimated rows in CheckIterator (%f/%f). Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows());
           my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");

@@ -5442,9 +5442,9 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  if (false && m_thd->re_optimize.m_access_paths != nullptr) {
+  if (m_thd->re_optimize.m_access_paths != nullptr) {
     for (auto [re_opt_access_path, actual_rows] : * m_thd->re_optimize.m_access_paths) {
-      if (re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
+      if (false && re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
         Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
         if (condition != nullptr && re_opt_access_path->filter().condition->eq(condition, true)) {
           path->set_num_output_rows(actual_rows);
@@ -8080,7 +8080,7 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
         CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
-  // if (thd->re_optimize.m_should_re_opt_hint && !thd->re_optimize.m_has_rerun) {
+  // if (is_topmost_query_block && IteratorsAreNeeded(thd, root_path) && thd->re_optimize.m_should_re_opt_hint && !thd->re_optimize.m_has_rerun) {
     // root_path = CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
                                   // /*temp_table_param=*/nullptr, true);
   // }
