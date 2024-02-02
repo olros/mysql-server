@@ -1057,10 +1057,12 @@ class THD : public MDL_context_owner,
     bool m_has_rerun = false;
     bool m_should_re_opt = false;
     bool m_should_re_opt_hint = false;
+    int m_num_of_plan_levels = 1;
 
     void set_has_rerun(bool has_rerun) { m_has_rerun = has_rerun; }
     void set_should_re_opt(bool should_re_opt) { m_should_re_opt = should_re_opt; }
     void set_should_re_opt_hint(bool should_re_opt_hint) { m_should_re_opt_hint = should_re_opt_hint; }
+    void set_num_of_plan_levels(int num_of_plan_levels) { m_num_of_plan_levels = num_of_plan_levels; }
 
     bool should_re_optimize() const { return m_should_re_opt_hint && m_should_re_opt && !m_has_rerun && m_access_paths != nullptr; }
 

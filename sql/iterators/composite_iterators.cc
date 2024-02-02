@@ -87,21 +87,24 @@ using std::vector;
 int CheckIterator::Read() {
   for (;;) {
     int err = m_source->Read();
-    if (err == 0 && m_should_count) {
+    const bool should_count = m_should_count && (static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels) > 0.3);
+    if (err == 0 && should_count) {
       m_found_count += 1;
     }
-    if (err == -1) {
-      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && (m_found_count > m_access_path->num_output_rows() * 2 || m_found_count < m_access_path->num_output_rows() * 0.9)) {
+    if (err == -1 && should_count) {
+      const double actual = std::max(m_found_count, 1.0);
+      const double estimate = std::max(m_access_path->num_output_rows(), 1.0);
+      const double diff = std::max(actual / estimate, estimate / actual);
+      printf("CheckIterator::plan_level_progress_percentage: (%d/%d)\n", m_plan_level, thd()->re_optimize.m_num_of_plan_levels);
+      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun) {
         const auto pair = std::make_pair(m_access_path, m_found_count);
         if (thd()->re_optimize.m_access_paths == nullptr) {
           thd()->re_optimize.m_access_paths = new mem_root_deque<std::pair<AccessPath *, int>>(thd()->mem_root);
         }
         thd()->re_optimize.m_access_paths->push_back(pair);
-        if (m_throw_if_wrong_cardinality) {
+        if (m_throw_if_wrong_cardinality && diff >= 42) {
           thd()->re_optimize.set_should_re_opt(true);
-          // thd()->re_optimize.set_re_optimize_actual_rows(&m_found_count);
-          // thd()->re_optimize.set_re_optimize_access_path(m_access_path);
-          printf("OH NO! Found count is more than estimated rows in CheckIterator (%d/%f). Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows());
+          printf("OH NO! Found count is more than estimated rows in CheckIterator (%f/%f). Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows());
           my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");
           return true;
         }

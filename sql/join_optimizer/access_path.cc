@@ -407,6 +407,7 @@ struct IteratorToBeCreated {
   bool eligible_for_batch_mode;
   unique_ptr_destroy_only<RowIterator> *destination;
   Bounds_checked_array<unique_ptr_destroy_only<RowIterator>> children;
+  int level = 0;
 
   void AllocChildren(MEM_ROOT *mem_root, int num_children) {
     children =
@@ -423,7 +424,7 @@ void SetupJobsForChildren(MEM_ROOT *mem_root, AccessPath *child, JOIN *join,
   job->AllocChildren(mem_root, 1);
   todo->push_back(*job);
   todo->push_back(
-      {child, join, eligible_for_batch_mode, &job->children[0], {}});
+      {child, join, eligible_for_batch_mode, &job->children[0], {}, job->level + 1});
 }
 
 void SetupJobsForChildren(MEM_ROOT *mem_root, AccessPath *outer,
@@ -438,8 +439,8 @@ void SetupJobsForChildren(MEM_ROOT *mem_root, AccessPath *outer,
   job->AllocChildren(mem_root, 2);
   todo->push_back(*job);
   todo->push_back(
-      {inner, join, inner_eligible_for_batch_mode, &job->children[1], {}});
-  todo->push_back({outer, join, false, &job->children[0], {}});
+      {inner, join, inner_eligible_for_batch_mode, &job->children[1], {}, job->level + 1});
+  todo->push_back({outer, join, false, &job->children[0], {}, job->level + 1});
 }
 
 }  // namespace
@@ -487,9 +488,10 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
     bool top_eligible_for_batch_mode) {
   assert(IteratorsAreNeeded(thd, top_path));
 
+  int max_level = 1;
   unique_ptr_destroy_only<RowIterator> ret;
   Mem_root_array<IteratorToBeCreated> todo(mem_root);
-  todo.push_back({top_path, top_join, top_eligible_for_batch_mode, &ret, {}});
+  todo.push_back({top_path, top_join, top_eligible_for_batch_mode, &ret, {}, max_level});
 
   // The access path trees can be pretty deep, and the stack frames can be big
   // on certain compilers/setups, so instead of explicit recursion, we push jobs
@@ -510,10 +512,16 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
     IteratorToBeCreated job = todo.back();
     todo.pop_back();
 
+
     AccessPath *path = job.path;
     JOIN *join = job.join;
     bool eligible_for_batch_mode = job.eligible_for_batch_mode;
 
+    if (job.level > max_level) {
+      max_level = job.level;
+    }
+
+    printf("Current level: %d/%d (type: %d) \n", job.level, max_level, path->type);
     if (job.join != nullptr) {
       assert(!job.join->needs_finalize);
     }
@@ -650,7 +658,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                             join,
                             /*eligible_for_batch_mode=*/false,
                             &job.children[child_idx],
-                            {}});
+                            {}, job.level + 1});
           }
           continue;
         }
@@ -687,14 +695,14 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                             join,
                             /*eligible_for_batch_mode=*/false,
                             &job.children[child_idx],
-                            {}});
+                            {}, job.level + 1});
           }
           if (param.cpk_child != nullptr) {
             todo.push_back({param.cpk_child,
                             join,
                             /*eligible_for_batch_mode=*/false,
                             &job.children[param.children->size()],
-                            {}});
+                            {}, job.level + 1});
           }
           continue;
         }
@@ -729,7 +737,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                             join,
                             /*eligible_for_batch_mode=*/false,
                             &job.children[child_idx],
-                            {}});
+                            {}, job.level + 1});
           }
           continue;
         }
@@ -956,7 +964,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                 : HashJoinInput::kBuild;
 
         auto innerIterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(job.children[1]), true, true, param.inner);
+            thd, mem_root, std::move(job.children[1]), job.level, true, true, param.inner);
 
         auto hashJoinIterator = NewIterator<HashJoinIterator>(
             thd, mem_root, std::move(innerIterator),
@@ -969,7 +977,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             first_input, probe_input_batch_mode, hash_table_generation);
 
        iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(hashJoinIterator), true, false, path);
+            thd, mem_root, std::move(hashJoinIterator), job.level, true, false, path);
 
         break;
       }
@@ -986,7 +994,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
         auto filteriterator = NewIterator<FilterIterator>(
             thd, mem_root, std::move(job.children[0]), param.condition);
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(filteriterator), true, false, path);
+            thd, mem_root, std::move(filteriterator), job.level, true, false, path);
         break;
       }
       case AccessPath::SORT: {
@@ -1038,12 +1046,12 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                           join,
                           /*eligible_for_batch_mode=*/true,
                           &job.children[0],
-                          {}});
+                          {}, job.level + 1});
           todo.push_back({param.table_path,
                           join,
                           eligible_for_batch_mode,
                           &job.children[1],
-                          {}});
+                          {}, job.level + 1});
           continue;
         }
 
@@ -1111,7 +1119,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                           join,
                           eligible_for_batch_mode,
                           &job.children[0],
-                          {}});
+                          {}, job.level + 1});
           for (size_t i = 0; i < param->m_operands.size(); ++i) {
             const MaterializePathParameters::Operand &from =
                 param->m_operands[i];
@@ -1119,7 +1127,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                             from.join,
                             /*eligible_for_batch_mode=*/true,
                             &job.children[i + 1],
-                            {}});
+                            {}, job.level + 1});
           }
           continue;
         }
@@ -1193,7 +1201,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                             child_param.join,
                             /*eligible_for_batch_mode=*/true,
                             &job.children[child_idx],
-                            {}});
+                            {}, job.level + 1});
           }
           continue;
         }
@@ -1271,12 +1279,12 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                           join,
                           eligible_for_batch_mode,
                           &job.children[0],
-                          {}});
+                          {}, job.level + 1});
           todo.push_back({param.table_scan_path,
                           join,
                           eligible_for_batch_mode,
                           &job.children[1],
-                          {}});
+                          {}, job.level + 1});
           continue;
         }
         iterator = NewIterator<AlternativeIterator>(
@@ -1338,6 +1346,9 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
     path->iterator = iterator.get();
     *job.destination = std::move(iterator);
   }
+
+  thd->re_optimize.set_num_of_plan_levels(max_level);
+
   return ret;
 }
 

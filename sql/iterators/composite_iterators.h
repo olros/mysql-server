@@ -90,8 +90,8 @@ struct TABLE;
 class CheckIterator final : public RowIterator {
 public:
   CheckIterator(THD *thd, unique_ptr_destroy_only<RowIterator> source,
-                 bool should_count, bool throw_if_wrong_cardinality, AccessPath *access_path)
-      : RowIterator(thd), m_source(std::move(source)), m_should_count(should_count), m_throw_if_wrong_cardinality(throw_if_wrong_cardinality), m_access_path(access_path) {}
+                 int plan_level, bool should_count, bool throw_if_wrong_cardinality, AccessPath *access_path)
+      : RowIterator(thd), m_source(std::move(source)), m_plan_level(plan_level), m_should_count(should_count), m_throw_if_wrong_cardinality(throw_if_wrong_cardinality), m_access_path(access_path) {}
 
   bool Init() override { return m_source->Init(); }
 
@@ -109,7 +109,8 @@ public:
 
 private:
   unique_ptr_destroy_only<RowIterator> m_source;
-  int m_found_count = 0;
+  int m_plan_level = 1;
+  double m_found_count = 0.0;
   bool m_should_count = false;
   bool m_throw_if_wrong_cardinality = false;
   AccessPath *m_access_path;

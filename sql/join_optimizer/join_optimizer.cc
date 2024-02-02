@@ -5445,15 +5445,13 @@ AccessPath *CostingReceiver::ProposeAccessPath(
   if (m_thd->re_optimize.m_access_paths != nullptr) {
     for (auto [re_opt_access_path, actual_rows] : * m_thd->re_optimize.m_access_paths) {
       if (re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
-        printf("ProposeAccessPath::filter type %d \n", path->type);
         Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
-        if (re_opt_access_path->filter().condition->eq(condition, true)) {
+        if (condition != nullptr && re_opt_access_path->filter().condition->eq(condition, true)) {
           path->set_num_output_rows(actual_rows);
         }
       } else {
         const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *re_opt_access_path, obsolete_orderings);
         if (res == PathComparisonResult::IDENTICAL) {
-          printf("ProposeAccessPath::IDENTICAL type %d \n", path->type);
           path->set_num_output_rows(actual_rows);
         }
       }
