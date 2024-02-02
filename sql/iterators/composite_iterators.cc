@@ -94,7 +94,7 @@ int CheckIterator::Read() {
       double actual = std::max(m_found_count, 1.0);
       double estimate = std::max(m_access_path->num_output_rows(), 1.0);
       double diff = std::max(actual / estimate, estimate / actual);
-      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && diff >= 42) {
+      if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && diff >= 1) {
         const auto pair = std::make_pair(m_access_path, m_found_count);
         if (thd()->re_optimize.m_access_paths == nullptr) {
           thd()->re_optimize.m_access_paths =

@@ -172,6 +172,7 @@ struct Predicate {
   // The optimizer uses this to add their materialized/non-materialized
   // costs when evaluating filters.
   Mem_root_array<ContainedSubquery> contained_subqueries;
+
 };
 
 struct AppendPathParameters {

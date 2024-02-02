@@ -5458,7 +5458,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  if (m_thd->re_optimize.m_access_paths != nullptr) {
+  if (false && m_thd->re_optimize.m_access_paths != nullptr) {
     for (auto [re_opt_access_path, actual_rows] :
          *m_thd->re_optimize.m_access_paths) {
       if (re_opt_access_path->type == AccessPath::FILTER &&
@@ -5470,6 +5470,28 @@ AccessPath *CostingReceiver::ProposeAccessPath(
         if (re_opt_access_path->filter().condition->eq(condition, true)) {
           path->set_num_output_rows(actual_rows);
           break;
+        }
+      } else if (path->type == AccessPath::HASH_JOIN &&
+                 (re_opt_access_path->type == AccessPath::HASH_JOIN ||
+                  re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN)) {
+        auto join_predicate =
+            re_opt_access_path->type == AccessPath::HASH_JOIN
+                ? re_opt_access_path->hash_join().join_predicate
+                : re_opt_access_path->nested_loop_join().join_predicate;
+        if (join_predicate->functional_dependencies ==
+            path->hash_join().join_predicate->functional_dependencies) {
+          printf("found equal join cond with type %d", path->type);
+        }
+      } else if (path->type == AccessPath::NESTED_LOOP_JOIN &&
+                 (re_opt_access_path->type == AccessPath::HASH_JOIN ||
+                  re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN)) {
+        auto join_predicate =
+            re_opt_access_path->type == AccessPath::HASH_JOIN
+                ? re_opt_access_path->hash_join().join_predicate
+                : re_opt_access_path->nested_loop_join().join_predicate;
+        if (join_predicate->functional_dependencies ==
+            path->nested_loop_join().join_predicate->functional_dependencies) {
+          printf("found equal join cond with type %d", path->type);
         }
       } else {
         const PathComparisonResult res = CompareAccessPaths(
@@ -7509,11 +7531,30 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   if (MakeJoinHypergraph(thd, trace, &graph, &where_is_always_false)) {
     return nullptr;
   }
+  if (thd->re_optimize.m_access_paths != nullptr) {
+    auto predicate = graph.predicates.begin();
+    for (unsigned i = 0; i < graph.num_where_predicates; i++) {
+      for (auto [re_opt_access_path, actual_rows] :
+           *thd->re_optimize.m_access_paths) {
+        if (re_opt_access_path->type == AccessPath::FILTER) {
+          if (re_opt_access_path->filter().condition->eq(predicate->condition,
+                                                         true)) {
+            auto newSelectivity =
+                actual_rows / re_opt_access_path->num_output_rows_before_filter;
+            predicate->selectivity = newSelectivity;
+            break;
+          }
+        }
+      }
+      predicate++;
+    }
+  }
 
   if (where_is_always_false) {
     if (trace != nullptr) {
       *trace +=
-          "Skipping join order optimization because an always false condition "
+          "Skipping join order optimization because an always false "
+          "condition "
           "was found in the WHERE clause.\n";
     }
     return CreateZeroRowsForEmptyJoin(join, "WHERE condition is always false");
@@ -7529,8 +7570,9 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   bool need_rowid = false;
   if (query_block->is_explicitly_grouped() || join->order.order != nullptr ||
       join->select_distinct || !join->m_windows.is_empty()) {
-    // NOTE: This is distinct from SortWillBeOnRowId(), as it also checks blob
-    // fields arising from blob-generating functions on non-blob fields.
+    // NOTE: This is distinct from SortWillBeOnRowId(), as it also checks
+    // blob fields arising from blob-generating functions on non-blob
+    // fields.
     for (Item *item : *join->fields) {
       if (item->is_blob_field()) {
         need_rowid = true;
@@ -7578,8 +7620,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     EnableFullTextCoveringIndexes(query_block);
   }
 
-  // Collect interesting orders from ORDER BY, GROUP BY, semijoins and windows.
-  // See BuildInterestingOrders() for more detailed information.
+  // Collect interesting orders from ORDER BY, GROUP BY, semijoins and
+  // windows. See BuildInterestingOrders() for more detailed information.
   LogicalOrderings orderings(thd);
   Mem_root_array<SortAheadOrdering> sort_ahead_orderings(thd->mem_root);
   Mem_root_array<ActiveIndexInfo> active_indexes(thd->mem_root);
@@ -7597,7 +7639,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
 
   // Run the actual join optimizer algorithm. This creates an access path
   // for the join as a whole (with lowest possible cost, and thus also
-  // hopefully optimal execution time), with all pushable predicates applied.
+  // hopefully optimal execution time), with all pushable predicates
+  // applied.
   if (trace != nullptr) {
     *trace += "\nEnumerating subplans:\n";
   }
@@ -7617,8 +7660,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
       *subgraph_pair_limit, secondary_engine_cost_hook,
       secondary_engine_optimizer_request_state_hook, trace);
   if (graph.nodes.size() == 1) {
-    // Fast path for single-table queries. No need to run the join enumeration
-    // when there is no join. Just visit the only node directly.
+    // Fast path for single-table queries. No need to run the join
+    // enumeration when there is no join. Just visit the only node directly.
     if (receiver.FoundSingleNode(0) && thd->is_error()) {
       return nullptr;
     }
@@ -7675,10 +7718,10 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     return CreateZeroRowsForEmptyJoin(join, join->zero_result_cause);
   }
 
-  // Get the root candidates. If there is a secondary engine cost hook, there
-  // may be no candidates, as the hook may have rejected so many access paths
-  // that we could not build a complete plan, or the hook may have rejected
-  // the plan as not offloadable.
+  // Get the root candidates. If there is a secondary engine cost hook,
+  // there may be no candidates, as the hook may have rejected so many
+  // access paths that we could not build a complete plan, or the hook may
+  // have rejected the plan as not offloadable.
   Prealloced_array<AccessPath *, 4> root_candidates =
       receiver.root_candidates();
   if (query_block->is_table_value_constructor) {
@@ -7714,9 +7757,9 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
         root_candidates.size());
   }
 
-  // If we know the result will be empty, there is no point in adding paths for
-  // filters, aggregation, windowing and sorting on top of it further down. Just
-  // return the empty result directly.
+  // If we know the result will be empty, there is no point in adding paths
+  // for filters, aggregation, windowing and sorting on top of it further
+  // down. Just return the empty result directly.
   if (receiver.always_empty()) {
     for (AccessPath *root_path : root_candidates) {
       if (root_path->type == AccessPath::ZERO_ROWS) {
@@ -7728,10 +7771,10 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     }
   }
 
-  // Now we have one or more access paths representing joining all the tables
-  // together. (There may be multiple ones because they can be better at
-  // different metrics.) We apply the post-join operations to all of them in
-  // turn, and then finally pick out the one with the lowest total cost,
+  // Now we have one or more access paths representing joining all the
+  // tables together. (There may be multiple ones because they can be better
+  // at different metrics.) We apply the post-join operations to all of them
+  // in turn, and then finally pick out the one with the lowest total cost,
   // because at the end, other metrics don't really matter any more.
   //
   // We could have stopped caring about e.g. init_cost after LIMIT
@@ -7755,14 +7798,15 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     }
   }
 
-  // Add the final predicates to the root candidates, and expand FILTER access
-  // paths for all predicates (not only the final ones) in the entire access
-  // path tree of the candidates.
+  // Add the final predicates to the root candidates, and expand FILTER
+  // access paths for all predicates (not only the final ones) in the entire
+  // access path tree of the candidates.
   //
-  // It is an unnecessary step if there are no FILTER access paths to expand.
-  // It's not so expensive that it's worth spending a lot of effort to find out
-  // if it can be skipped, but let's skip it if our only candidate is an EQ_REF
-  // with no filter predicates, so that we don't waste time in point selects.
+  // It is an unnecessary step if there are no FILTER access paths to
+  // expand. It's not so expensive that it's worth spending a lot of effort
+  // to find out if it can be skipped, but let's skip it if our only
+  // candidate is an EQ_REF with no filter predicates, so that we don't
+  // waste time in point selects.
   if (has_final_predicates ||
       !(root_candidates.size() == 1 &&
         root_candidates[0]->type == AccessPath::EQ_REF &&
@@ -7847,11 +7891,12 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     return nullptr;
   }
 
-  // Before we apply the HAVING condition, make sure its used_tables() cache is
-  // refreshed. The condition might have been rewritten by
-  // FinalizePlanForQueryBlock() to point into a temporary table in a previous
-  // execution. Even if that change was rolled back at the end of the previous
-  // execution, used_tables() may still say it uses the temporary table.
+  // Before we apply the HAVING condition, make sure its used_tables() cache
+  // is refreshed. The condition might have been rewritten by
+  // FinalizePlanForQueryBlock() to point into a temporary table in a
+  // previous execution. Even if that change was rolled back at the end of
+  // the previous execution, used_tables() may still say it uses the
+  // temporary table.
   if (join->having_cond != nullptr) {
     graph.secondary_engine_costing_flags |=
         SecondaryEngineCostingFlag::CONTAINS_HAVING_ACCESSPATH;
@@ -7868,8 +7913,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
                                 &root_candidates, &receiver);
 
   // If we have GROUP BY followed by a window function (which might include
-  // ORDER BY), we might need to materialize before the first ordering -- see
-  // the comment near the top of ApplyDistinctAndOrder() for why.
+  // ORDER BY), we might need to materialize before the first ordering --
+  // see the comment near the top of ApplyDistinctAndOrder() for why.
   if (query_block->is_explicitly_grouped() && !join->m_windows.is_empty()) {
     Prealloced_array<AccessPath *, 4> new_root_candidates(PSI_NOT_INSTRUMENTED);
     for (AccessPath *root_path : root_candidates) {
@@ -7905,10 +7950,10 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     graph.secondary_engine_costing_flags |=
         SecondaryEngineCostingFlag::CONTAINS_QUALIFY_ACCESSPATH;
 
-    // If there were query transformations done earlier E.g.subquery to derived,
-    // we need to update used tables for expressions having window functions to
-    // include the newly added tables in the query block
-    // (See Item_sum::add_used_tables_for_aggr_func()).
+    // If there were query transformations done earlier E.g.subquery to
+    // derived, we need to update used tables for expressions having window
+    // functions to include the newly added tables in the query block (See
+    // Item_sum::add_used_tables_for_aggr_func()).
     query_block->qualify_cond()->update_used_tables();
     if (post_window_filter == nullptr) {
       post_window_filter = query_block->qualify_cond();
@@ -7931,8 +7976,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   graph.secondary_engine_costing_flags |=
       SecondaryEngineCostingFlag::HANDLING_DISTINCT_ORDERBY_LIMITOFFSET;
   if (join->select_distinct || join->order.order != nullptr) {
-    // UPDATE and DELETE must preserve row IDs through ORDER BY in order to keep
-    // track of which rows to update or delete.
+    // UPDATE and DELETE must preserve row IDs through ORDER BY in order to
+    // keep track of which rows to update or delete.
     const bool force_sort_rowids = update_delete_target_tables != 0;
 
     root_candidates = ApplyDistinctAndOrder(
@@ -7942,8 +7987,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
         std::move(root_candidates), trace);
   }
 
-  // Apply LIMIT and OFFSET, if applicable. If the query block is ordered, they
-  // are already applied by ApplyDistinctAndOrder().
+  // Apply LIMIT and OFFSET, if applicable. If the query block is ordered,
+  // they are already applied by ApplyDistinctAndOrder().
   Query_expression *query_expression = join->query_expression();
   if (join->order.order == nullptr &&
       (query_expression->select_limit_cnt != HA_POS_ERROR ||
@@ -7964,8 +8009,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     root_candidates = std::move(new_root_candidates);
   }
 
-  // Add a DELETE_ROWS or UPDATE_ROWS access path if this is the topmost query
-  // block of a DELETE statement or an UPDATE statement.
+  // Add a DELETE_ROWS or UPDATE_ROWS access path if this is the topmost
+  // query block of a DELETE statement or an UPDATE statement.
   if (is_delete) {
     Prealloced_array<AccessPath *, 4> new_root_candidates(PSI_NOT_INSTRUMENTED);
     for (AccessPath *root_path : root_candidates) {
@@ -8001,9 +8046,9 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   if (thd->is_error()) return nullptr;
 
   if (secondary_engine_cost_hook != nullptr && root_candidates.empty()) {
-    // The secondary engine has rejected so many of the post-processing paths
-    // (e.g., sorting, limit, grouping) that we could not build a complete plan,
-    // or the hook has rejected the plan as not offloadable.
+    // The secondary engine has rejected so many of the post-processing
+    // paths (e.g., sorting, limit, grouping) that we could not build a
+    // complete plan, or the hook has rejected the plan as not offloadable.
     std::string_view reason = get_secondary_engine_fail_reason(thd->lex);
     if (!reason.empty()) {
       my_error(ER_SECONDARY_ENGINE, MYF(0), std::data(reason));
@@ -8015,9 +8060,9 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     return nullptr;
   }
 
-  // TODO(sgunders): If we are part of e.g. a derived table and are streamed,
-  // we might want to keep multiple root paths around for future use, e.g.,
-  // if there is a LIMIT higher up.
+  // TODO(sgunders): If we are part of e.g. a derived table and are
+  // streamed, we might want to keep multiple root paths around for future
+  // use, e.g., if there is a LIMIT higher up.
   AccessPath *root_path =
       *std::min_element(root_candidates.begin(), root_candidates.end(),
                         [](const AccessPath *a, const AccessPath *b) {
@@ -8037,10 +8082,11 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
       return nullptr;
     }
   }
-  // Materialize the result if a top-level query block has the SQL_BUFFER_RESULT
-  // option, and the chosen root path isn't already a materialization path. Skip
-  // the materialization path when using an external executor, since it will
-  // have to decide for itself whether and how to do the materialization.
+  // Materialize the result if a top-level query block has the
+  // SQL_BUFFER_RESULT option, and the chosen root path isn't already a
+  // materialization path. Skip the materialization path when using an
+  // external executor, since it will have to decide for itself whether and
+  // how to do the materialization.
   if (query_block->active_options() & OPTION_BUFFER_RESULT &&
       is_topmost_query_block && !IsMaterializationPath(root_path) &&
       IteratorsAreNeeded(thd, root_path)) {
@@ -8049,18 +8095,19 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     }
 
     // If we have windows, we may need to add a materialization for the last
-    // window here, or create_tmp_table() will not create fields for its window
-    // functions. (All other windows have already been materialized.)
+    // window here, or create_tmp_table() will not create fields for its
+    // window functions. (All other windows have already been materialized.)
     bool copy_items = join->m_windows.is_empty();
     root_path =
         CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
   if (thd->re_optimize.m_should_re_opt_hint) {
-    InsertMaterializeNodes(thd, root_path, join, 0);
-    // root_path =
-    //   CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
-    //                           /*temp_table_param=*/nullptr, true);
+    // InsertMaterializeNodes(thd, root_path, join, 0);
+    root_path =
+       CreateMaterializationPath(thd, join, root_path,
+       /*temp_table=*/nullptr,
+                               /*temp_table_param=*/nullptr, false);
   }
 
   if (trace != nullptr) {
@@ -8080,8 +8127,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   join->best_rowcount = lrint(root_path->num_output_rows());
   join->best_read = root_path->cost();
 
-  // 0 or 1 rows has a special meaning; it means a _guarantee_ we have no more
-  // than one (so-called “const tables”). Make sure we don't give that
+  // 0 or 1 rows has a special meaning; it means a _guarantee_ we have no
+  // more than one (so-called “const tables”). Make sure we don't give that
   // guarantee unless we have a LIMIT.
   if (join->best_rowcount <= 1 &&
       query_expression->select_limit_cnt - query_expression->offset_limit_cnt >
@@ -8118,19 +8165,21 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
       if (path->nested_loop_join().inner->type == AccessPath::HASH_JOIN ||
           path->nested_loop_join().inner->type ==
               AccessPath::NESTED_LOOP_JOIN) {
-        //create_tmp_table();
+        // create_tmp_table();
 
-        AccessPath *mat_path = CreateMaterializationPath(
-            thd, join, path->nested_loop_join().inner, /*temp_table=*/nullptr,
-            /*temp_table_param=*/nullptr, false);
+        AccessPath *mat_path =
+            CreateMaterializationPath(thd, join, path->nested_loop_join().inner,
+                                      /*temp_table=*/nullptr,
+                                      /*temp_table_param=*/nullptr, true);
         path->nested_loop_join().inner = mat_path;
       }
       if (path->nested_loop_join().outer->type == AccessPath::HASH_JOIN ||
           path->nested_loop_join().outer->type ==
               AccessPath::NESTED_LOOP_JOIN) {
-        AccessPath *mat_path = CreateMaterializationPath(
-            thd, join, path->nested_loop_join().outer, /*temp_table=*/nullptr,
-            /*temp_table_param=*/nullptr, false);
+        AccessPath *mat_path =
+            CreateMaterializationPath(thd, join, path->nested_loop_join().outer,
+                                      /*temp_table=*/nullptr,
+                                      /*temp_table_param=*/nullptr, true);
         path->nested_loop_join().outer = mat_path;
       }
     } break;
@@ -8153,7 +8202,7 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
           path->hash_join().inner->type == AccessPath::NESTED_LOOP_JOIN) {
         AccessPath *mat_path = CreateMaterializationPath(
             thd, join, path->hash_join().inner, /*temp_table=*/nullptr,
-            /*temp_table_param=*/nullptr, false);
+            /*temp_table_param=*/nullptr, true);
         path->hash_join().inner = mat_path;
       }
 
@@ -8161,10 +8210,8 @@ void InsertMaterializeNodes(THD *thd, AccessPath *path, JOIN *join, int level) {
           path->hash_join().outer->type == AccessPath::NESTED_LOOP_JOIN) {
         AccessPath *mat_path = CreateMaterializationPath(
             thd, join, path->hash_join().outer, /*temp_table=*/nullptr,
-            /*temp_table_param=*/nullptr, false);
+            /*temp_table_param=*/nullptr, true);
         path->hash_join().outer = mat_path;
-
-
       }
     }
       break;
