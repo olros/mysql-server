@@ -92,17 +92,19 @@ int CheckIterator::Read() {
       m_found_count += 1;
     }
     if (err == -1 && should_count) {
-      const double actual = std::max(m_found_count, 1.0);
-      const double estimate = std::max(m_access_path->num_output_rows(), 1.0);
-      const double diff = std::max(actual / estimate, estimate / actual);
-      printf("CheckIterator::plan_level_progress_percentage: (%d/%d)\n", m_plan_level, thd()->re_optimize.m_num_of_plan_levels);
       if (thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun) {
         const auto pair = std::make_pair(m_access_path, m_found_count);
         if (thd()->re_optimize.m_access_paths == nullptr) {
           thd()->re_optimize.m_access_paths = new mem_root_deque<std::pair<AccessPath *, int>>(thd()->mem_root);
         }
         thd()->re_optimize.m_access_paths->push_back(pair);
-        if (m_throw_if_wrong_cardinality && diff >= 42) {
+        const double actual = std::max(m_found_count, 1.0);
+        const double estimate = std::max(m_access_path->num_output_rows(), 1.0);
+        const double diff = std::max(actual / estimate, estimate / actual);
+        if (m_throw_if_wrong_cardinality) {
+          printf("CheckIterator::plan_level_progress_percentage: %f (%d/%d)\n", diff, m_plan_level, thd()->re_optimize.m_num_of_plan_levels);
+        }
+        if (m_throw_if_wrong_cardinality && diff >= 2) {
           thd()->re_optimize.set_should_re_opt(true);
           printf("OH NO! Found count is more than estimated rows in CheckIterator (%f/%f). Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows());
           my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "HashJoinIterator");
@@ -281,6 +283,7 @@ bool AggregateIterator::Init() {
 
   // Not really used, just to be sure.
   m_last_unchanged_group_item_idx = 0;
+
 
   m_state = READING_FIRST_ROW;
 

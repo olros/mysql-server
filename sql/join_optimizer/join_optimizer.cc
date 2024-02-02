@@ -5442,7 +5442,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  if (m_thd->re_optimize.m_access_paths != nullptr) {
+  if (false && m_thd->re_optimize.m_access_paths != nullptr) {
     for (auto [re_opt_access_path, actual_rows] : * m_thd->re_optimize.m_access_paths) {
       if (re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
         Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
@@ -7482,6 +7482,58 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   if (MakeJoinHypergraph(thd, trace, &graph, &where_is_always_false)) {
     return nullptr;
   }
+  if (thd->re_optimize.m_access_paths != nullptr) {
+    auto predicate = graph.predicates.begin();
+    for (unsigned i = 0; i < graph.num_where_predicates; i++) {
+      for (auto [re_opt_access_path, actual_rows] : * thd->re_optimize.m_access_paths) {
+        if (re_opt_access_path->type == AccessPath::FILTER) {
+          if (re_opt_access_path->filter().condition->eq(predicate->condition, true)) {
+            auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows_before_filter;
+            predicate->selectivity = newSelectivity;
+            break;
+          }
+        }
+      }
+      predicate++;
+    }
+  }
+  if (thd->re_optimize.m_access_paths != nullptr) {
+    auto join_predicate = graph.edges.begin();
+    for (unsigned i = 0; i < graph.edges.size(); i++) {
+      for (auto [re_opt_access_path, actual_rows] :
+           *thd->re_optimize.m_access_paths) {
+        if (re_opt_access_path->type == AccessPath::HASH_JOIN ||
+             re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN) {
+          auto re_op_join_predicate =
+              re_opt_access_path->type == AccessPath::HASH_JOIN
+                  ? re_opt_access_path->hash_join().join_predicate
+                  : re_opt_access_path->nested_loop_join().join_predicate;
+          printf("Testing join ----- !!!!!!!! ----- \n");
+          bool isEqual = true;
+          for (auto re_opt_cond : re_op_join_predicate->expr->join_conditions) {
+            for (auto cond :
+                 join_predicate->expr->join_conditions) {
+              if (re_opt_cond->eq(cond, true)) {
+                isEqual = false;
+                break;
+              }
+                 }
+          }
+          if (isEqual) {
+            auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows();
+            printf("found an equal join predicate ----- !!!!!!!! ----- %f %f \n", newSelectivity, join_predicate->selectivity);
+          }
+          // if (re_op_join_predicate->functional_dependencies == join_predicate->functional_dependencies) {
+          // if (re_op_join_predicate->expr->join_conditions == join_predicate->functional_dependencies) {
+            // auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows();
+            // printf("found an equal join predicate ----- !!!!!!!! ----- %f %f \n", newSelectivity, join_predicate->selectivity);
+            // join_predicate->selectivity = newSelectivity;
+          // }
+        }
+      }
+      join_predicate++;
+    }
+  }
 
   if (where_is_always_false) {
     if (trace != nullptr) {
@@ -8028,6 +8080,10 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
         CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
+  // if (thd->re_optimize.m_should_re_opt_hint && !thd->re_optimize.m_has_rerun) {
+    // root_path = CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
+                                  // /*temp_table_param=*/nullptr, true);
+  // }
 
   if (trace != nullptr) {
     *trace += StringPrintf("Final cost is %.1f.\n", root_path->cost());

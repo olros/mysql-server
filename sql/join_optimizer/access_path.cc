@@ -521,7 +521,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       max_level = job.level;
     }
 
-    printf("Current level: %d/%d (type: %d) \n", job.level, max_level, path->type);
+    // printf("Current level: %d/%d (type: %d) \n", job.level, max_level, path->type);
     if (job.join != nullptr) {
       assert(!job.join->needs_finalize);
     }
@@ -829,9 +829,11 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
           continue;
         }
 
-        iterator = NewIterator<NestedLoopIterator>(
+        auto nested_loop_join_iterator = NewIterator<NestedLoopIterator>(
             thd, mem_root, std::move(job.children[0]),
             std::move(job.children[1]), param.join_type, param.pfs_batch_mode);
+        iterator = NewIterator<CheckIterator>(
+            thd, mem_root, std::move(nested_loop_join_iterator), job.level, true, true, path);
         break;
       }
       case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL: {
@@ -964,7 +966,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                 : HashJoinInput::kBuild;
 
         auto innerIterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(job.children[1]), job.level, true, true, param.inner);
+            thd, mem_root, std::move(job.children[1]), job.level, true, false, param.inner);
 
         auto hashJoinIterator = NewIterator<HashJoinIterator>(
             thd, mem_root, std::move(innerIterator),
@@ -977,7 +979,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             first_input, probe_input_batch_mode, hash_table_generation);
 
        iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(hashJoinIterator), job.level, true, false, path);
+            thd, mem_root, std::move(hashJoinIterator), job.level, true, true, path);
 
         break;
       }
@@ -994,7 +996,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
         auto filteriterator = NewIterator<FilterIterator>(
             thd, mem_root, std::move(job.children[0]), param.condition);
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(filteriterator), job.level, true, false, path);
+            thd, mem_root, std::move(filteriterator), job.level, true, true, path);
         break;
       }
       case AccessPath::SORT: {
@@ -1008,16 +1010,18 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                                         ? HA_POS_ERROR
                                         : lrint(param.child->num_output_rows());
         Filesort *filesort = param.filesort;
-        iterator = NewIterator<SortingIterator>(
+        auto sort_iterator = NewIterator<SortingIterator>(
             thd, mem_root, filesort, std::move(job.children[0]),
             num_rows_estimate, param.tables_to_get_rowid_for, examined_rows);
         if (filesort->m_remove_duplicates) {
           filesort->tables[0]->duplicate_removal_iterator =
-              down_cast<SortingIterator *>(iterator->real_iterator());
+              down_cast<SortingIterator *>(sort_iterator->real_iterator());
         } else {
           filesort->tables[0]->sorting_iterator =
-              down_cast<SortingIterator *>(iterator->real_iterator());
+              down_cast<SortingIterator *>(sort_iterator->real_iterator());
         }
+        iterator = NewIterator<CheckIterator>(
+            thd, mem_root, std::move(sort_iterator), job.level, true, false, path);
         break;
       }
       case AccessPath::AGGREGATE: {

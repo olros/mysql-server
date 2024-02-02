@@ -1691,22 +1691,23 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     return true;
   }
 
-  printf("\n Has passed clear for execution \n");
+  printf(" Has passed clear for execution \n");
 
   mem_root_deque<Item *> *fields = get_field_list();
   Query_result *query_result = this->query_result();
   assert(query_result != nullptr);
   if (query_result->start_execution(thd)) return true;
 
-  printf("\n Has passed query result start_execution \n");
+  printf(" Has passed query result start_execution \n");
 
-  if (!thd->re_optimize.should_re_optimize()) {
+  if (!thd->re_optimize.m_has_rerun) {
+    printf("  Query result send_result_set metadata \n");
     if (query_result->send_result_set_metadata(
             thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
       return true;
             }
   }
-  printf("\n Has passed query result send_result_set metadata \n");
+  printf(" Has passed query result send_result_set metadata \n");
 
   set_executed();
 
