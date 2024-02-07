@@ -56,7 +56,6 @@
 #include "mysqld_error.h"
 #include "prealloced_array.h"  // Prealloced_array
 #include "scope_guard.h"
-#include "sql_test.h"
 #include "sql/auth/auth_acls.h"
 #include "sql/current_thd.h"
 #include "sql/debug_sync.h"  // DEBUG_SYNC
@@ -96,6 +95,7 @@
 #include "sql/thd_raii.h"
 #include "sql/visible_fields.h"
 #include "sql/window.h"  // Window
+#include "sql_test.h"
 #include "template_utils.h"
 
 class Item_rollup_group_item;
@@ -1130,7 +1130,6 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
                     PrintQueryPlan(0, m_root_access_path, join, is_root_of_join)
                         .c_str())););
 
-
     m_root_iterator = CreateIteratorFromAccessPath(
         thd, m_root_access_path, join, /*eligible_for_batch_mode=*/true);
     if (m_root_iterator == nullptr) {
@@ -1143,7 +1142,7 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
       }
     }
 
-    if (true) {
+    if (false) {
       // This can be useful during debugging.
       // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
       // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
@@ -1703,7 +1702,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     if (query_result->send_result_set_metadata(
             thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
       return true;
-            }
+    }
   }
   printf("\n Has passed query result send_result_set metadata \n");
 
@@ -1762,8 +1761,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   thd->get_stmt_da()->reset_current_row_for_condition();
 
   {
-      auto join_cleanup = create_scope_guard([this, thd] {
-      if(!thd->re_optimize.should_re_optimize()) {
+    auto join_cleanup = create_scope_guard([this, thd] {
+      if (!thd->re_optimize.should_re_optimize()) {
         for (Query_block *sl = first_query_block(); sl;
              sl = sl->next_query_block()) {
           JOIN *join = sl->join;
@@ -1773,25 +1772,26 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         if (!is_simple() && set_operation()->m_is_materialized)
           thd->inc_examined_row_count(
               query_term()->query_block()->join->examined_rows);
-
       }
-      });
+    });
 
     if (m_root_iterator->Init()) {
-      if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
+      if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY &&
+          thd->re_optimize.should_re_optimize()) {
         thd->clear_error();
         printf("\nRerunning optimizer \n");
 
-        for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
+        for (Query_block *sl = this->first_query_block(); sl != nullptr;
+             sl = sl->next_query_block()) {
           if (sl->join != nullptr) {
             sl->join->destroy();
             sl->join = nullptr;
           }
         }
-        this->clear_execution();
 
         this->optimize(thd, /*materialize_destination=*/nullptr,
-                         /*create_iterators=*/true, /*finalize_access_paths=*/true);
+                       /*create_iterators=*/true,
+                       /*finalize_access_paths=*/true);
         thd->re_optimize.m_should_re_opt = false;
         thd->re_optimize.m_has_rerun = true;
         return this->execute(thd);
@@ -1804,7 +1804,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     for (;;) {
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);
-
 
       if (error > 0 || thd->is_error())  // Fatal error
         return true;
@@ -1835,7 +1834,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 }
 
 /**
-  Execute a query expression that may be a UNION and/or have an ordered result.
+  Execute a query expression that may be a UNION and/or have an ordered
+  result.
 
   @param thd          thread handle
 

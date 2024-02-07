@@ -2280,8 +2280,6 @@ int MaterializeIterator<Profiler>::Read() {
       m_join->set_ref_item_slice(m_ref_slice);
     }
   }
-
-  printf("reading from mat it \n");
   const int err = m_table_iterator->Read();
   m_table_iter_profiler.StopRead(start_time, err == 0);
   return err;

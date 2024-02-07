@@ -7532,6 +7532,36 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     return nullptr;
   }
   if (thd->re_optimize.m_access_paths != nullptr) {
+    auto join_predicate = graph.edges.begin();
+    for (unsigned i = 0; i < graph.num_where_predicates; i++) {
+      for (auto [re_opt_access_path, actual_rows] :
+           *thd->re_optimize.m_access_paths) {
+        if ((re_opt_access_path->type == AccessPath::HASH_JOIN ||
+             re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN)) {
+          auto re_op_join_predicate =
+              re_opt_access_path->type == AccessPath::HASH_JOIN
+                  ? re_opt_access_path->hash_join().join_predicate
+                  : re_opt_access_path->nested_loop_join().join_predicate;
+          printf("Testing join ----- !!!!!!!! ----- \n");
+          bool isEqual = true;
+          for (auto re_opt_cond : re_op_join_predicate->expr->join_conditions) {
+            for (auto cond :
+                 join_predicate->expr->join_conditions) {
+              if (re_opt_cond->eq(cond, true)) {
+                isEqual = false;
+                break;
+              }
+            }
+          }
+          if (isEqual) {
+            //edit selectivity
+          }
+        }
+      }
+      join_predicate++;
+    }
+  }
+  if (thd->re_optimize.m_access_paths != nullptr) {
     auto predicate = graph.predicates.begin();
     for (unsigned i = 0; i < graph.num_where_predicates; i++) {
       for (auto [re_opt_access_path, actual_rows] :
@@ -8103,11 +8133,6 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
   if (thd->re_optimize.m_should_re_opt_hint) {
-    // InsertMaterializeNodes(thd, root_path, join, 0);
-    root_path =
-       CreateMaterializationPath(thd, join, root_path,
-       /*temp_table=*/nullptr,
-                               /*temp_table_param=*/nullptr, false);
   }
 
   if (trace != nullptr) {
