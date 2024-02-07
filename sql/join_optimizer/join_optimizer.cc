@@ -5442,7 +5442,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  if (m_thd->re_optimize.m_access_paths != nullptr) {
+  if (false && m_thd->re_optimize.m_access_paths != nullptr) {
     for (auto [re_opt_access_path, actual_rows] : * m_thd->re_optimize.m_access_paths) {
       if (false && re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
         Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
@@ -7522,6 +7522,7 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
           if (isEqual) {
             auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows();
             printf("found an equal join predicate ----- !!!!!!!! ----- %f %f \n", newSelectivity, join_predicate->selectivity);
+            join_predicate->selectivity = newSelectivity;
           }
           // if (re_op_join_predicate->functional_dependencies == join_predicate->functional_dependencies) {
           // if (re_op_join_predicate->expr->join_conditions == join_predicate->functional_dependencies) {

@@ -1778,6 +1778,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       }
     });
 
+    printf("\nBefore root_iterator Init() \n");
     if (m_root_iterator->Init()) {
       if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
         thd->clear_error();
@@ -1804,6 +1805,14 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
                          /*create_iterators=*/true, /*finalize_access_paths=*/true);
         thd->re_optimize.m_should_re_opt = false;
         thd->re_optimize.m_has_rerun = true;
+
+        // printf("\ncleanup_after_query \n");
+        // thd->cleanup_after_query();
+        printf("\nclear_copy_status_var \n");
+        thd->clear_copy_status_var();
+        printf("\nclear_current_query_costs \n");
+        thd->clear_current_query_costs();
+
         printf("\nRerunning again \n");
         return this->execute(thd);
       }

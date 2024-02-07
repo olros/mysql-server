@@ -32,10 +32,10 @@ INSERT INTO other4(w) SELECT v FROM (
 ) gen;
 
 EXPLAIN ANALYZE SELECT * FROM other4 JOIN other ON other4.w = other.y WHERE other.y > 100 and other4.w > 100;
-EXPLAIN ANALYZE SELECT /*+ RUN_REOPT */ * FROM other4 JOIN other ON other4.w = other.y WHERE other.y > 100 and other4.w > 100;
+EXPLAIN ANALYZE SELECT /*+ SET_VAR(sql_buffer_result=1) RUN_REOPT */ * FROM other4 JOIN other ON other4.w = other.y WHERE other.y > 100 and other4.w > 100;
 
 EXPLAIN ANALYZE SELECT * FROM test JOIN other ON test.x = other.y JOIN other2 ON other.y = other2.z JOIN other3 ON other2.z = other3.q WHERE other.y > 180;
-EXPLAIN ANALYZE SELECT /*+ RUN_REOPT */ * FROM test JOIN other ON test.x = other.y JOIN other2 ON other.y = other2.z JOIN other3 ON other2.z = other3.q WHERE other.y > 180;
+EXPLAIN ANALYZE SELECT /*+ SET_VAR(sql_buffer_result=1) RUN_REOPT */ * FROM test JOIN other ON test.x = other.y JOIN other2 ON other.y = other2.z JOIN other3 ON other2.z = other3.q WHERE other.y > 180;
 
 
 EXPLAIN ANALYZE SELECT /*+ RUN_REOPT */ COUNT(*) FROM test JOIN other ON test.x = other.y JOIN other2 ON other.y = other2.z JOIN other3 ON other2.z = other3.q WHERE other.y > 230;
