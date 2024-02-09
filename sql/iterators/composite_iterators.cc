@@ -118,7 +118,7 @@ int CheckIterator::Read() {
       if (err == -1) {
         m_seen_eof = true;
         this->UpdateReOptimizeAccessPaths();
-        if (above_estimate ? (m_throw_if_above && diff >= MIN_ABOVE_DIFF_TO_THROW) : (m_throw_if_below && diff >= MIN_BELOW_DIFF_TO_THROW)) {
+        if ((above_estimate ? (m_throw_if_above && diff >= MIN_ABOVE_DIFF_TO_THROW) : (m_throw_if_below && diff >= MIN_BELOW_DIFF_TO_THROW)) && relative_level <= (1.0 - MIN_RELATIVE_LEVEL)) {
           thd()->re_optimize.set_should_re_opt(true);
           my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "CheckIterator");
 // #ifndef NDEBUG
@@ -132,7 +132,7 @@ int CheckIterator::Read() {
           return 1;
         }
       }
-      if (m_throw_if_above && above_diff >= MIN_ABOVE_DIFF_TO_THROW) {
+      if (m_throw_if_above && above_diff >= MIN_ABOVE_DIFF_TO_THROW && relative_level <= (1.0 - MIN_RELATIVE_LEVEL)) {
         this->UpdateReOptimizeAccessPaths();
         thd()->re_optimize.set_should_re_opt(true);
         my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "CheckIterator");

@@ -1144,13 +1144,13 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
       }
     }
 
-    if (false) {
+    if (thd->re_optimize.m_access_paths != nullptr) {
       // This can be useful during debugging.
       // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
       // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
-      bool is_root_of_join = (join != nullptr);
+      const bool is_root_of_join = (join != nullptr);
       fprintf(
-          stderr, "Query plan:\n%s\n",
+          stderr, "Query plan after re-optimize:\n%s\n",
           PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
       }
   }
@@ -1796,6 +1796,13 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 #endif
     if (m_root_iterator->Init()) {
       if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
+// #ifndef NDEBUG
+        JOIN *join = query_term()->query_block()->join;
+        const bool is_root_of_join = (join != nullptr);
+        fprintf(
+            stderr, "Query plan to re-optimize:\n%s\n",
+            PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
+// #endif
         thd->clear_error();
 #ifndef NDEBUG
         printf("\nRerunning optimizer \n");

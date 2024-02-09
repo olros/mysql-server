@@ -117,8 +117,11 @@ private:
 
   const int MIN_ABOVE_DIFF_TO_THROW = 30;
   const int MIN_BELOW_DIFF_TO_THROW = 60;
-  /// The execution should only re-optimize if in the first half of the query plan
-  const double MAX_RELATIVE_LEVEL = 0.5;
+  /// The execution should only re-optimize if in the beginning of the query plan
+  const double MAX_RELATIVE_LEVEL = 0.4;
+  /// The execution should only re-optimize if a certain part of the query plan
+  /// has run, to ensure that enough knowledge has been gathered
+  const double MIN_RELATIVE_LEVEL = 0.11;
 
   /// Whether we have seen the last input row.
   bool m_seen_eof = false;
