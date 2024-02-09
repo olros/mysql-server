@@ -114,6 +114,16 @@ private:
   bool m_should_count = false;
   bool m_throw_if_wrong_cardinality = false;
   AccessPath *m_access_path;
+
+  const int MIN_ABOVE_DIFF_TO_THROW = 20;
+  const int MIN_BELOW_DIFF_TO_THROW = 40;
+  /// The execution should only re-optimize if in the lower 30% of the query plan
+  const double MAX_RELATIVE_LEVEL = 0.3;
+
+  /// Whether we have seen the last input row.
+  bool m_seen_eof = false;
+
+  void UpdateReOptimizeAccessPaths();
 };
 
 /**

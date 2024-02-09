@@ -7417,6 +7417,57 @@ bool ApplyAggregation(
   return false;
 }
 
+void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
+  if (thd->re_optimize.m_access_paths != nullptr) {
+    auto predicate = graph->predicates.begin();
+    for (unsigned i = 0; i < graph->num_where_predicates; i++) {
+      for (auto [re_opt_access_path, actual_rows] : * thd->re_optimize.m_access_paths) {
+        if (re_opt_access_path->type == AccessPath::FILTER) {
+          if (re_opt_access_path->filter().condition->eq(predicate->condition, true)) {
+            auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows_before_filter;
+#ifndef NDEBUG
+            printf("JoinHypergraph::FILTER Found matching condition %d %d %f %f \n", re_opt_access_path->type, actual_rows, re_opt_access_path->num_output_rows_before_filter, newSelectivity);
+#endif
+            predicate->selectivity = newSelectivity;
+            break;
+          }
+        }
+      }
+      predicate++;
+    }
+  }
+  if (thd->re_optimize.m_access_paths != nullptr) {
+    for (auto [re_opt_access_path, actual_rows] :
+      *thd->re_optimize.m_access_paths) {
+#ifndef NDEBUG
+      fprintf(
+          stderr, "JoinHypergraph::JOIN Query plan for recorded access path:\n%s\n",
+          PrintQueryPlan(0, re_opt_access_path, nullptr, false).c_str());
+#endif
+      JoinPredicate *join_predicate = graph->edges.begin();
+      for (unsigned i = 0; i < graph->edges.size(); i++) {
+        if (re_opt_access_path->type == AccessPath::HASH_JOIN ||
+             re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN) {
+          const JoinPredicate *re_op_join_predicate =
+              re_opt_access_path->type == AccessPath::HASH_JOIN
+                  ? re_opt_access_path->hash_join().join_predicate
+                  : re_opt_access_path->nested_loop_join().join_predicate;
+          const bool isEqual = join_predicate->expr->type == re_op_join_predicate->expr->type && join_predicate->expr->tables_in_subtree == re_op_join_predicate->expr->tables_in_subtree;
+          if (isEqual) {
+            const double newSelectivity = (actual_rows / re_opt_access_path->num_output_rows()) * join_predicate->selectivity;
+#ifndef NDEBUG
+            printf("JoinHypergraph::JOIN Found equal join predicate %f %f %d %f \n", newSelectivity, join_predicate->selectivity, actual_rows, re_opt_access_path->num_output_rows());
+#endif
+            join_predicate->selectivity = newSelectivity;
+            break;
+          }
+        }
+        join_predicate++;
+      }
+    }
+  }
+}
+
 /**
   Find the lowest-cost plan (which hopefully is also the cheapest to execute)
   of all the legal ways to execute the query. The overall order of operations is
@@ -7482,59 +7533,6 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
   if (MakeJoinHypergraph(thd, trace, &graph, &where_is_always_false)) {
     return nullptr;
   }
-  if (thd->re_optimize.m_access_paths != nullptr) {
-    auto predicate = graph.predicates.begin();
-    for (unsigned i = 0; i < graph.num_where_predicates; i++) {
-      for (auto [re_opt_access_path, actual_rows] : * thd->re_optimize.m_access_paths) {
-        if (re_opt_access_path->type == AccessPath::FILTER) {
-          if (re_opt_access_path->filter().condition->eq(predicate->condition, true)) {
-            auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows_before_filter;
-            predicate->selectivity = newSelectivity;
-            break;
-          }
-        }
-      }
-      predicate++;
-    }
-  }
-  if (thd->re_optimize.m_access_paths != nullptr) {
-    auto join_predicate = graph.edges.begin();
-    for (unsigned i = 0; i < graph.edges.size(); i++) {
-      for (auto [re_opt_access_path, actual_rows] :
-           *thd->re_optimize.m_access_paths) {
-        if (re_opt_access_path->type == AccessPath::HASH_JOIN ||
-             re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN) {
-          auto re_op_join_predicate =
-              re_opt_access_path->type == AccessPath::HASH_JOIN
-                  ? re_opt_access_path->hash_join().join_predicate
-                  : re_opt_access_path->nested_loop_join().join_predicate;
-          printf("Testing join ----- !!!!!!!! ----- \n");
-          bool isEqual = true;
-          for (auto re_opt_cond : re_op_join_predicate->expr->join_conditions) {
-            for (auto cond :
-                 join_predicate->expr->join_conditions) {
-              if (re_opt_cond->eq(cond, true)) {
-                isEqual = false;
-                break;
-              }
-                 }
-          }
-          if (isEqual) {
-            auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows();
-            printf("found an equal join predicate ----- !!!!!!!! ----- %f %f \n", newSelectivity, join_predicate->selectivity);
-            join_predicate->selectivity = newSelectivity;
-          }
-          // if (re_op_join_predicate->functional_dependencies == join_predicate->functional_dependencies) {
-          // if (re_op_join_predicate->expr->join_conditions == join_predicate->functional_dependencies) {
-            // auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows();
-            // printf("found an equal join predicate ----- !!!!!!!! ----- %f %f \n", newSelectivity, join_predicate->selectivity);
-            // join_predicate->selectivity = newSelectivity;
-          // }
-        }
-      }
-      join_predicate++;
-    }
-  }
 
   if (where_is_always_false) {
     if (trace != nullptr) {
@@ -7544,6 +7542,8 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
     }
     return CreateZeroRowsForEmptyJoin(join, "WHERE condition is always false");
   }
+
+  ApplyReOptimizeActualSelectivities(thd, &graph);
 
   FindSargablePredicates(thd, trace, &graph);
 

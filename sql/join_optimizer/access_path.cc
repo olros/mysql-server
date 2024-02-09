@@ -563,21 +563,27 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       case AccessPath::REF: {
         const auto &param = path->ref();
         if (param.reverse) {
-          iterator = NewIterator<RefIterator<true>>(
+          auto ref_iterator = NewIterator<RefIterator<true>>(
               thd, mem_root, param.table, param.ref, param.use_order,
               path->num_output_rows(), examined_rows);
+          iterator = NewIterator<CheckIterator>(
+              thd, mem_root, std::move(ref_iterator), job.level, true, true, path);
         } else {
-          iterator = NewIterator<RefIterator<false>>(
+          auto ref_iterator = NewIterator<RefIterator<false>>(
               thd, mem_root, param.table, param.ref, param.use_order,
               path->num_output_rows(), examined_rows);
+          iterator = NewIterator<CheckIterator>(
+              thd, mem_root, std::move(ref_iterator), job.level, true, true, path);
         }
         break;
       }
       case AccessPath::REF_OR_NULL: {
         const auto &param = path->ref_or_null();
-        iterator = NewIterator<RefOrNullIterator>(
+        auto ref_or_null_iterator = NewIterator<RefOrNullIterator>(
             thd, mem_root, param.table, param.ref, param.use_order,
             path->num_output_rows(), examined_rows);
+        iterator = NewIterator<CheckIterator>(
+            thd, mem_root, std::move(ref_or_null_iterator), job.level, true, true, path);
         break;
       }
       case AccessPath::EQ_REF: {

@@ -1144,15 +1144,15 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
       }
     }
 
-    if (true) {
-      // This can be useful during debugging.
-      // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
-      // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
-      bool is_root_of_join = (join != nullptr);
-      fprintf(
-          stderr, "Query plan:\n%s\n",
-          PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
-    }
+// #ifndef NDEBUG
+    // This can be useful during debugging.
+    // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
+    // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
+    bool is_root_of_join = (join != nullptr);
+    fprintf(
+        stderr, "Query plan:\n%s\n",
+        PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
+// #endif
   }
 
   // When done with the outermost query expression, and if max_join_size is in
@@ -1676,8 +1676,9 @@ bool Query_expression::ClearForExecution() {
 bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   THD_STAGE_INFO(thd, stage_executing);
   DEBUG_SYNC(thd, "before_join_exec");
-
+#ifndef NDEBUG
   printf("\nStart of ExecuteIteratorQuery ----- \n");
+#endif
 
   Opt_trace_context *const trace = &thd->opt_trace;
   Opt_trace_object trace_wrapper(trace);
@@ -1691,23 +1692,31 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     return true;
   }
 
+#ifndef NDEBUG
   printf(" Has passed clear for execution \n");
+#endif
 
   mem_root_deque<Item *> *fields = get_field_list();
   Query_result *query_result = this->query_result();
   assert(query_result != nullptr);
   if (query_result->start_execution(thd)) return true;
 
+#ifndef NDEBUG
   printf(" Has passed query result start_execution \n");
+#endif
 
   if (!thd->re_optimize.m_has_rerun) {
+#ifndef NDEBUG
     printf("  Query result send_result_set metadata \n");
+#endif
     if (query_result->send_result_set_metadata(
             thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
       return true;
             }
   }
+#ifndef NDEBUG
   printf(" Has passed query result send_result_set metadata \n");
+#endif
 
   set_executed();
 
@@ -1778,17 +1787,21 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       }
     });
 
+#ifndef NDEBUG
     printf("\nBefore root_iterator Init() \n");
+#endif
     if (m_root_iterator->Init()) {
       if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
         thd->clear_error();
+#ifndef NDEBUG
         printf("\nRerunning optimizer \n");
+#endif
 
         this->clear_root_access_path();
         // this->cleanup(true);
         for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
           if (sl->join != nullptr) {
-            sl->join->join_free();
+            // sl->join->join_free();
             sl->join->destroy();
             sl->join = nullptr;
           }
@@ -1796,29 +1809,28 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         }
         this->clear_execution();
 
-        if (!thd->lex->is_explain()) {
-          for (TABLE *table = thd->open_tables; table; table = table->next) {
-            table->file->ha_external_lock(thd, F_RDLCK);
-          }
-        }
+        // if (!thd->lex->is_explain()) {
+          // for (TABLE *table = thd->open_tables; table; table = table->next) {
+            // table->file->ha_external_lock(thd, F_RDLCK);
+          // }
+        // }
         this->optimize(thd, /*materialize_destination=*/nullptr,
                          /*create_iterators=*/true, /*finalize_access_paths=*/true);
         thd->re_optimize.m_should_re_opt = false;
         thd->re_optimize.m_has_rerun = true;
 
-        // printf("\ncleanup_after_query \n");
-        // thd->cleanup_after_query();
-        printf("\nclear_copy_status_var \n");
         thd->clear_copy_status_var();
-        printf("\nclear_current_query_costs \n");
         thd->clear_current_query_costs();
-
+#ifndef NDEBUG
         printf("\nRerunning again \n");
+#endif
         return this->execute(thd);
       }
       return true;
     }
+#ifndef NDEBUG
     printf("\n has passed root_iterator_init \n");
+#endif
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
 
@@ -1849,15 +1861,16 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     // row counts right.
   }
 
+#ifndef NDEBUG
   printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
-  if (thd->re_optimize.m_has_rerun) {
-    thd->re_optimize.m_has_rerun = false;
-    if (!thd->lex->is_explain()) {
-      for (TABLE *table = thd->open_tables; table; table = table->next) {
-        table->file->ha_external_lock(thd, F_UNLCK);
-      }
-    }
-  }
+#endif
+  // if (thd->re_optimize.m_has_rerun) {
+    // if (!thd->lex->is_explain()) {
+      // for (TABLE *table = thd->open_tables; table; table = table->next) {
+        // table->file->ha_external_lock(thd, F_UNLCK);
+      // }
+    // }
+  // }
 
   thd->current_found_rows = *send_records_ptr;
 
@@ -1875,10 +1888,14 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 bool Query_expression::execute(THD *thd) {
   DBUG_TRACE;
   assert(is_optimized());
+#ifndef NDEBUG
   printf("Passed is_optimized\n");
+#endif
 
   if (is_executed() && !uncacheable) return false;
+#ifndef NDEBUG
   printf("Passed is_executed\n");
+#endif
 
   assert(!unfinished_materialization());
 
