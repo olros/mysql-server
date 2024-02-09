@@ -7419,16 +7419,20 @@ bool ApplyAggregation(
 
 void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
   if (thd->re_optimize.m_access_paths != nullptr) {
-    auto predicate = graph->predicates.begin();
+    Predicate *predicate = graph->predicates.begin();
     for (unsigned i = 0; i < graph->num_where_predicates; i++) {
+      // printf("JoinHypergraph::FILTER predicate %d \n", predicate->condition->type());
       for (auto [re_opt_access_path, actual_rows] : * thd->re_optimize.m_access_paths) {
         if (re_opt_access_path->type == AccessPath::FILTER) {
           if (re_opt_access_path->filter().condition->eq(predicate->condition, true)) {
-            auto newSelectivity = actual_rows / re_opt_access_path->num_output_rows_before_filter;
+            const double new_selectivity = actual_rows / re_opt_access_path->num_output_rows_before_filter;
 #ifndef NDEBUG
-            printf("JoinHypergraph::FILTER Found matching condition %d %d %f %f \n", re_opt_access_path->type, actual_rows, re_opt_access_path->num_output_rows_before_filter, newSelectivity);
+            printf("JoinHypergraph::FILTER Found matching condition %d %d %f %f \n", re_opt_access_path->type, actual_rows, re_opt_access_path->num_output_rows_before_filter, new_selectivity);
+            fprintf(
+                stderr, "%s\n",
+                PrintQueryPlan(0, re_opt_access_path, nullptr, false).c_str());
 #endif
-            predicate->selectivity = newSelectivity;
+            predicate->selectivity = new_selectivity;
             break;
           }
         }
@@ -7452,13 +7456,12 @@ void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
               re_opt_access_path->type == AccessPath::HASH_JOIN
                   ? re_opt_access_path->hash_join().join_predicate
                   : re_opt_access_path->nested_loop_join().join_predicate;
-          const bool isEqual = join_predicate->expr->type == re_op_join_predicate->expr->type && join_predicate->expr->tables_in_subtree == re_op_join_predicate->expr->tables_in_subtree;
-          if (isEqual) {
-            const double newSelectivity = (actual_rows / re_opt_access_path->num_output_rows()) * join_predicate->selectivity;
+          if (join_predicate->expr->type == re_op_join_predicate->expr->type && join_predicate->expr->tables_in_subtree == re_op_join_predicate->expr->tables_in_subtree) {
+            const double new_selectivity = (actual_rows / re_opt_access_path->num_output_rows()) * join_predicate->selectivity;
 #ifndef NDEBUG
-            printf("JoinHypergraph::JOIN Found equal join predicate %f %f %d %f \n", newSelectivity, join_predicate->selectivity, actual_rows, re_opt_access_path->num_output_rows());
+            printf("JoinHypergraph::JOIN Found equal join predicate %f %f %d %f \n", new_selectivity, join_predicate->selectivity, actual_rows, re_opt_access_path->num_output_rows());
 #endif
-            join_predicate->selectivity = newSelectivity;
+            join_predicate->selectivity = new_selectivity;
             break;
           }
         }

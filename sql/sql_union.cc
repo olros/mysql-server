@@ -1144,15 +1144,15 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
       }
     }
 
-// #ifndef NDEBUG
-    // This can be useful during debugging.
-    // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
-    // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
-    bool is_root_of_join = (join != nullptr);
-    fprintf(
-        stderr, "Query plan:\n%s\n",
-        PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
-// #endif
+    if (false) {
+      // This can be useful during debugging.
+      // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
+      // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
+      bool is_root_of_join = (join != nullptr);
+      fprintf(
+          stderr, "Query plan:\n%s\n",
+          PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
+      }
   }
 
   // When done with the outermost query expression, and if max_join_size is in
@@ -1787,6 +1787,10 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       }
     });
 
+    if (m_root_access_path->cost() < 25000.0) {
+      thd->re_optimize.set_has_rerun(true);
+    }
+
 #ifndef NDEBUG
     printf("\nBefore root_iterator Init() \n");
 #endif
@@ -1798,10 +1802,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 #endif
 
         this->clear_root_access_path();
-        // this->cleanup(true);
         for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
           if (sl->join != nullptr) {
-            // sl->join->join_free();
             sl->join->destroy();
             sl->join = nullptr;
           }
@@ -1809,11 +1811,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         }
         this->clear_execution();
 
-        // if (!thd->lex->is_explain()) {
-          // for (TABLE *table = thd->open_tables; table; table = table->next) {
-            // table->file->ha_external_lock(thd, F_RDLCK);
-          // }
-        // }
         this->optimize(thd, /*materialize_destination=*/nullptr,
                          /*create_iterators=*/true, /*finalize_access_paths=*/true);
         thd->re_optimize.m_should_re_opt = false;
@@ -1864,13 +1861,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 #ifndef NDEBUG
   printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
 #endif
-  // if (thd->re_optimize.m_has_rerun) {
-    // if (!thd->lex->is_explain()) {
-      // for (TABLE *table = thd->open_tables; table; table = table->next) {
-        // table->file->ha_external_lock(thd, F_UNLCK);
-      // }
-    // }
-  // }
 
   thd->current_found_rows = *send_records_ptr;
 

@@ -97,7 +97,7 @@ int CheckIterator::Read() {
   for (;;) {
     int err = m_source->Read();
     const double relative_level = static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels);
-    const bool should_count = !m_seen_eof && thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && m_should_count && relative_level >= (1.0 - MAX_RELATIVE_LEVEL);
+    const bool should_count = !m_seen_eof && thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - MAX_RELATIVE_LEVEL);
     if (err == 0 && should_count) {
       m_found_count += 1;
     }
@@ -118,28 +118,32 @@ int CheckIterator::Read() {
       if (err == -1) {
         m_seen_eof = true;
         this->UpdateReOptimizeAccessPaths();
-        if (m_throw_if_wrong_cardinality && diff >= (above_estimate ? MIN_ABOVE_DIFF_TO_THROW : MIN_BELOW_DIFF_TO_THROW)) {
+        if (above_estimate ? (m_throw_if_above && diff >= MIN_ABOVE_DIFF_TO_THROW) : (m_throw_if_below && diff >= MIN_BELOW_DIFF_TO_THROW)) {
           thd()->re_optimize.set_should_re_opt(true);
           my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "CheckIterator");
 // #ifndef NDEBUG
-          printf("OH NO! Found count does not match estimated rows in CheckIterator (%f/%f). Diff: %f. Level: %d. Relative level: %f Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), diff, m_plan_level, relative_level);
+          printf("OH NO! Found count does not match estimated rows in CheckIterator (%f/%f). Type: %d. Diff: %f. Level: %d. Relative level: %f Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, diff, m_plan_level, relative_level);
+// #endif
+#ifndef NDEBUG
           fprintf(
             stderr, "Query plan:\n%s\n",
             PrintQueryPlan(0, m_access_path, nullptr, false).c_str());
-// #endif
+#endif
           return 1;
         }
       }
-      if (above_diff >= MIN_ABOVE_DIFF_TO_THROW && m_throw_if_wrong_cardinality) {
+      if (m_throw_if_above && above_diff >= MIN_ABOVE_DIFF_TO_THROW) {
         this->UpdateReOptimizeAccessPaths();
         thd()->re_optimize.set_should_re_opt(true);
         my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "CheckIterator");
 // #ifndef NDEBUG
-        printf("OH NO! Found count is much above estimated rows in CheckIterator (%f/%f). Diff: %f. Level: %d. Relative level: %f Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), diff, m_plan_level, relative_level);
+        printf("OH NO! Found count is much above estimated rows in CheckIterator (%f/%f). Type: %d. Diff: %f. Level: %d. Relative level: %f Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, diff, m_plan_level, relative_level);
+// #endif
+#ifndef NDEBUG
         fprintf(
           stderr, "Query plan:\n%s\n",
           PrintQueryPlan(0, m_access_path, nullptr, false).c_str());
-// #endif
+#endif
         return 1;
       }
     }

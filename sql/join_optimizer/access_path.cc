@@ -488,7 +488,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
     bool top_eligible_for_batch_mode) {
   assert(IteratorsAreNeeded(thd, top_path));
 
-  int max_level = 1;
+  int max_level = 0;
   unique_ptr_destroy_only<RowIterator> ret;
   Mem_root_array<IteratorToBeCreated> todo(mem_root);
   todo.push_back({top_path, top_join, top_eligible_for_batch_mode, &ret, {}, max_level});
@@ -563,27 +563,21 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       case AccessPath::REF: {
         const auto &param = path->ref();
         if (param.reverse) {
-          auto ref_iterator = NewIterator<RefIterator<true>>(
+          iterator = NewIterator<RefIterator<true>>(
               thd, mem_root, param.table, param.ref, param.use_order,
               path->num_output_rows(), examined_rows);
-          iterator = NewIterator<CheckIterator>(
-              thd, mem_root, std::move(ref_iterator), job.level, true, true, path);
         } else {
-          auto ref_iterator = NewIterator<RefIterator<false>>(
+          iterator = NewIterator<RefIterator<false>>(
               thd, mem_root, param.table, param.ref, param.use_order,
               path->num_output_rows(), examined_rows);
-          iterator = NewIterator<CheckIterator>(
-              thd, mem_root, std::move(ref_iterator), job.level, true, true, path);
         }
         break;
       }
       case AccessPath::REF_OR_NULL: {
         const auto &param = path->ref_or_null();
-        auto ref_or_null_iterator = NewIterator<RefOrNullIterator>(
+        iterator = NewIterator<RefOrNullIterator>(
             thd, mem_root, param.table, param.ref, param.use_order,
             path->num_output_rows(), examined_rows);
-        iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(ref_or_null_iterator), job.level, true, true, path);
         break;
       }
       case AccessPath::EQ_REF: {
@@ -839,7 +833,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             thd, mem_root, std::move(job.children[0]),
             std::move(job.children[1]), param.join_type, param.pfs_batch_mode);
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(nested_loop_join_iterator), job.level, true, true, path);
+            thd, mem_root, std::move(nested_loop_join_iterator), job.level, path, false);
         break;
       }
       case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL: {
@@ -972,7 +966,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                 : HashJoinInput::kBuild;
 
         auto innerIterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(job.children[1]), job.level, true, false, param.inner);
+            thd, mem_root, std::move(job.children[1]), job.level, param.inner, true, true);
 
         auto hashJoinIterator = NewIterator<HashJoinIterator>(
             thd, mem_root, std::move(innerIterator),
@@ -985,7 +979,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             first_input, probe_input_batch_mode, hash_table_generation);
 
        iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(hashJoinIterator), job.level, true, true, path);
+            thd, mem_root, std::move(hashJoinIterator), job.level, path);
 
         break;
       }
@@ -1002,7 +996,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
         auto filteriterator = NewIterator<FilterIterator>(
             thd, mem_root, std::move(job.children[0]), param.condition);
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(filteriterator), job.level, true, true, path);
+            thd, mem_root, std::move(filteriterator), job.level, path);
         break;
       }
       case AccessPath::SORT: {
@@ -1027,7 +1021,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
               down_cast<SortingIterator *>(sort_iterator->real_iterator());
         }
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(sort_iterator), job.level, true, false, path);
+            thd, mem_root, std::move(sort_iterator), job.level, path, true, false);
         break;
       }
       case AccessPath::AGGREGATE: {

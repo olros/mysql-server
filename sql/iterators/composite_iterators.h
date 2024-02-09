@@ -90,8 +90,8 @@ struct TABLE;
 class CheckIterator final : public RowIterator {
 public:
   CheckIterator(THD *thd, unique_ptr_destroy_only<RowIterator> source,
-                 int plan_level, bool should_count, bool throw_if_wrong_cardinality, AccessPath *access_path)
-      : RowIterator(thd), m_source(std::move(source)), m_plan_level(plan_level), m_should_count(should_count), m_throw_if_wrong_cardinality(throw_if_wrong_cardinality), m_access_path(access_path) {}
+                 int plan_level, AccessPath *access_path, bool throw_if_below = true, bool throw_if_above = true)
+      : RowIterator(thd), m_source(std::move(source)), m_plan_level(plan_level), m_access_path(access_path), m_throw_if_below(throw_if_below), m_throw_if_above(throw_if_above) {}
 
   bool Init() override { return m_source->Init(); }
 
@@ -111,14 +111,14 @@ private:
   unique_ptr_destroy_only<RowIterator> m_source;
   int m_plan_level = 1;
   double m_found_count = 0.0;
-  bool m_should_count = false;
-  bool m_throw_if_wrong_cardinality = false;
   AccessPath *m_access_path;
+  bool m_throw_if_below;
+  bool m_throw_if_above;
 
-  const int MIN_ABOVE_DIFF_TO_THROW = 20;
-  const int MIN_BELOW_DIFF_TO_THROW = 40;
-  /// The execution should only re-optimize if in the lower 30% of the query plan
-  const double MAX_RELATIVE_LEVEL = 0.3;
+  const int MIN_ABOVE_DIFF_TO_THROW = 30;
+  const int MIN_BELOW_DIFF_TO_THROW = 60;
+  /// The execution should only re-optimize if in the first half of the query plan
+  const double MAX_RELATIVE_LEVEL = 0.5;
 
   /// Whether we have seen the last input row.
   bool m_seen_eof = false;
