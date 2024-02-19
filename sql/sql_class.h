@@ -1053,7 +1053,7 @@ class THD : public MDL_context_owner,
   */
   class Re_Optimize {
   public:
-    mem_root_deque<std::pair<AccessPath *, int>> *m_access_paths = nullptr;
+    mem_root_deque<std::pair<AccessPath *, double>> *m_access_paths = nullptr;
     bool m_has_rerun = false;
     bool m_should_re_opt = false;
     bool m_should_re_opt_hint = false;

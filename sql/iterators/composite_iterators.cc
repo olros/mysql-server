@@ -86,23 +86,23 @@ using std::string;
 using std::vector;
 
 void CheckIterator::UpdateReOptimizeAccessPaths() {
-  const auto pair = std::make_pair(m_access_path, m_found_count);
+  const auto pair = std::make_pair(m_access_path, m_found_count / loops);
   if (thd()->re_optimize.m_access_paths == nullptr) {
-    thd()->re_optimize.m_access_paths = new mem_root_deque<std::pair<AccessPath *, int>>(thd()->mem_root);
+    thd()->re_optimize.m_access_paths = new mem_root_deque<std::pair<AccessPath *, double>>(thd()->mem_root);
   }
-  thd()->re_optimize.m_access_paths->push_back(pair);
+  thd()->re_optimize.m_access_paths->push_front(pair);
 }
 
 int CheckIterator::Read() {
   for (;;) {
     int err = m_source->Read();
     const double relative_level = static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels);
-    const bool should_count = !m_seen_eof && thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - MAX_RELATIVE_LEVEL);
+    const bool should_count = thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - MAX_RELATIVE_LEVEL);
     if (err == 0 && should_count) {
       m_found_count += 1;
     }
     if (should_count) {
-      const double actual = std::max(m_found_count, 1.0);
+      const double actual = std::max(m_found_count/loops, 1.0);
       const double estimate = std::max(m_access_path->num_output_rows(), 1.0);
       const double above_diff = actual / estimate;
       const double below_diff = estimate / actual;
@@ -116,8 +116,8 @@ int CheckIterator::Read() {
 #endif
 
       if (err == -1) {
-        m_seen_eof = true;
         this->UpdateReOptimizeAccessPaths();
+        loops += 1;
         if ((above_estimate ? (m_throw_if_above && diff >= MIN_ABOVE_DIFF_TO_THROW) : (m_throw_if_below && diff >= MIN_BELOW_DIFF_TO_THROW)) && relative_level <= (1.0 - MIN_RELATIVE_LEVEL)) {
           thd()->re_optimize.set_should_re_opt(true);
           my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "CheckIterator");

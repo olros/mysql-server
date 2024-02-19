@@ -833,7 +833,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
             thd, mem_root, std::move(job.children[0]),
             std::move(job.children[1]), param.join_type, param.pfs_batch_mode);
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(nested_loop_join_iterator), job.level, path, false);
+            thd, mem_root, std::move(nested_loop_join_iterator), job.level, path, false, false);
         break;
       }
       case AccessPath::NESTED_LOOP_SEMIJOIN_WITH_DUPLICATE_REMOVAL: {

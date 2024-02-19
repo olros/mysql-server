@@ -7421,13 +7421,12 @@ void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
   if (thd->re_optimize.m_access_paths != nullptr) {
     Predicate *predicate = graph->predicates.begin();
     for (unsigned i = 0; i < graph->num_where_predicates; i++) {
-      // printf("JoinHypergraph::FILTER predicate %d \n", predicate->condition->type());
       for (auto [re_opt_access_path, actual_rows] : * thd->re_optimize.m_access_paths) {
-        if (re_opt_access_path->type == AccessPath::FILTER) {
+        if (re_opt_access_path->type == AccessPath::FILTER && actual_rows > 0.0) {
           if (re_opt_access_path->filter().condition->eq(predicate->condition, true)) {
             const double new_selectivity = actual_rows / re_opt_access_path->num_output_rows_before_filter;
 #ifndef NDEBUG
-            printf("JoinHypergraph::FILTER Found matching condition %d %d %f %f \n", re_opt_access_path->type, actual_rows, re_opt_access_path->num_output_rows_before_filter, new_selectivity);
+            printf("JoinHypergraph::FILTER Found matching condition, type: %d, actual_rows: %f, rows_before_filter %f, old_selectivity %f, new_selectivity %f \n", re_opt_access_path->type, actual_rows, re_opt_access_path->num_output_rows_before_filter, predicate->selectivity, new_selectivity);
             fprintf(
                 stderr, "%s\n",
                 PrintQueryPlan(0, re_opt_access_path, nullptr, false).c_str());
@@ -7440,7 +7439,7 @@ void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
       predicate++;
     }
   }
-  if (thd->re_optimize.m_access_paths != nullptr) {
+  if (thd->re_optimize.m_access_paths != nullptr && false) {
     for (auto [re_opt_access_path, actual_rows] :
       *thd->re_optimize.m_access_paths) {
 #ifndef NDEBUG

@@ -121,10 +121,9 @@ private:
   const double MAX_RELATIVE_LEVEL = 0.4;
   /// The execution should only re-optimize if a certain part of the query plan
   /// has run, to ensure that enough knowledge has been gathered
-  const double MIN_RELATIVE_LEVEL = 0.11;
+  const double MIN_RELATIVE_LEVEL = 0.0;
 
-  /// Whether we have seen the last input row.
-  bool m_seen_eof = false;
+  int loops = 1;
 
   void UpdateReOptimizeAccessPaths();
 };
