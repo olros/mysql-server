@@ -98,8 +98,6 @@ bool Query_result_send::send_data(THD *thd,
   Protocol *protocol = thd->get_protocol();
   DBUG_TRACE;
 
-  // printf("\nSending rows\n");
-
   protocol->start_row();
   if (thd->send_result_set_row(items)) {
     protocol->abort_row();

@@ -11676,7 +11676,6 @@ double EstimateRowAccesses(const AccessPath *path, double num_evaluations,
             return true;
           }
           case AccessPath::FILTER: {
-            // printf("SUPERTEST EstimateRowAccesses::1 \n");
             // Filters may access rows in subqueries. Count them.
             const auto &param = subpath->filter();
             const double input_rows = param.child->num_output_rows();

@@ -319,7 +319,6 @@ bool AggregateIterator::Init() {
   // Not really used, just to be sure.
   m_last_unchanged_group_item_idx = 0;
 
-
   m_state = READING_FIRST_ROW;
 
   return false;

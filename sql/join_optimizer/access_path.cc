@@ -521,7 +521,6 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
       max_level = job.level;
     }
 
-    // printf("Current level: %d/%d (type: %d) \n", job.level, max_level, path->type);
     if (job.join != nullptr) {
       assert(!job.join->needs_finalize);
     }

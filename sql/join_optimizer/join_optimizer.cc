@@ -5442,22 +5442,6 @@ AccessPath *CostingReceiver::ProposeAccessPath(
     DBUG_EXECUTE_IF(token.c_str(), path->forced_by_dbug = true;);
   });
 
-  if (false && m_thd->re_optimize.m_access_paths != nullptr) {
-    for (auto [re_opt_access_path, actual_rows] : * m_thd->re_optimize.m_access_paths) {
-      if (false && re_opt_access_path->type == AccessPath::FILTER && !path->filter_predicates.empty()) {
-        Item *condition = ConditionFromFilterPredicates(m_graph->predicates, path->filter_predicates, m_graph->num_where_predicates);
-        if (condition != nullptr && re_opt_access_path->filter().condition->eq(condition, true)) {
-          path->set_num_output_rows(actual_rows);
-        }
-      } else {
-        const PathComparisonResult res = CompareAccessPaths(*m_orderings, *path, *re_opt_access_path, obsolete_orderings);
-        if (res == PathComparisonResult::IDENTICAL) {
-          path->set_num_output_rows(actual_rows);
-        }
-      }
-    }
-  }
-
   if (existing_paths->empty()) {
     if (m_trace != nullptr) {
       *m_trace += " - " +
@@ -5747,7 +5731,6 @@ bool CheckSupportedQuery(THD *thd) {
   return false;
 }
 
-// Can maybe be used for materialization?
 /**
   Set up an access path for streaming or materializing through a temporary
   table. If none is needed (because earlier iterators already materialize
@@ -5804,7 +5787,6 @@ AccessPath *GetSafePathToSort(THD *thd, JOIN *join, AccessPath *path,
   }
 }
 
-// Can maybe be used for materialization?
 /**
   Sets up an access path for materializing the results returned from a path in a
   temporary table.
@@ -8083,10 +8065,6 @@ static AccessPath *FindBestQueryPlanInner(THD *thd, Query_block *query_block,
         CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
                                   /*temp_table_param=*/nullptr, copy_items);
   }
-  // if (is_topmost_query_block && IteratorsAreNeeded(thd, root_path) && thd->re_optimize.m_should_re_opt_hint && !thd->re_optimize.m_has_rerun) {
-    // root_path = CreateMaterializationPath(thd, join, root_path, /*temp_table=*/nullptr,
-                                  // /*temp_table_param=*/nullptr, true);
-  // }
 
   if (trace != nullptr) {
     *trace += StringPrintf("Final cost is %.1f.\n", root_path->cost());
