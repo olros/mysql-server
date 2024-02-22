@@ -93,7 +93,7 @@ public:
                  int plan_level, AccessPath *access_path, bool throw_if_below = true, bool throw_if_above = true)
       : RowIterator(thd), m_source(std::move(source)), m_plan_level(plan_level), m_access_path(access_path), m_throw_if_below(throw_if_below), m_throw_if_above(throw_if_above) {}
 
-  bool Init() override { return m_source->Init(); }
+  bool Init() override;
 
   int Read() override;
 
@@ -109,21 +109,30 @@ public:
 
 private:
   unique_ptr_destroy_only<RowIterator> m_source;
+  /// Active CheckIterator (count rows and re-optimize)
+  bool m_active;
+  /// What level in the query plan is the Iterator located at
   int m_plan_level = 1;
+  /// How many rows have been retrieved through Read()
   double m_found_count = 0.0;
+  /// How many times has the CheckIterator reached EOF
+  int m_loops = 1;
+  /// Access path of the iterator that this CheckIterator wraps,
+  /// which contains information about the estimated cardinality
   AccessPath *m_access_path;
+  /// Whether the CheckIterator should initiate re-optimization
+  /// if actual cardinality is below the estimate
   bool m_throw_if_below;
+  /// Whether the CheckIterator should initiate re-optimization
+  /// if actual cardinality is above the estimate
   bool m_throw_if_above;
 
+  /// Q-error above estimate needed to re-optimize
   const int MIN_ABOVE_DIFF_TO_THROW = 30;
+  /// Q-error below estimate needed to re-optimize
   const int MIN_BELOW_DIFF_TO_THROW = 60;
-  /// The execution should only re-optimize if in the beginning of the query plan
+  /// The execution should only re-optimize at the beginning of the query plan
   const double MAX_RELATIVE_LEVEL = 0.4;
-  /// The execution should only re-optimize if a certain part of the query plan
-  /// has run, to ensure that enough knowledge has been gathered
-  const double MIN_RELATIVE_LEVEL = 0.0;
-
-  int loops = 1;
 
   void UpdateReOptimizeAccessPaths();
 };

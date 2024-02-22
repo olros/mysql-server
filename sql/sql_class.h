@@ -1053,10 +1053,15 @@ class THD : public MDL_context_owner,
   */
   class Re_Optimize {
   public:
+    /// Pairs of access paths and their actual cardinality
     mem_root_deque<std::pair<AccessPath *, double>> *m_access_paths = nullptr;
+    /// Whether re-optimization has already happened
     bool m_has_rerun = false;
+    /// Whether a CheckIterator has triggered re-optimization
     bool m_should_re_opt = false;
+    /// Whether the re-optimization hint is active
     bool m_should_re_opt_hint = false;
+    /// Number of levels in the query plan
     int m_num_of_plan_levels = 1;
 
     void set_has_rerun(bool has_rerun) { m_has_rerun = has_rerun; }
@@ -1064,6 +1069,10 @@ class THD : public MDL_context_owner,
     void set_should_re_opt_hint(bool should_re_opt_hint) { m_should_re_opt_hint = should_re_opt_hint; }
     void set_num_of_plan_levels(int num_of_plan_levels) { m_num_of_plan_levels = num_of_plan_levels; }
 
+    /// Re-optimizing should only occur if the hint is turned on,
+    /// a CheckIterator has initiated re-optimizing,
+    /// re-optimizing hasn't already happened,
+    /// and actual cardinalities have been found and stored
     bool should_re_optimize() const { return m_should_re_opt_hint && m_should_re_opt && !m_has_rerun && m_access_paths != nullptr; }
 
     void reset() {

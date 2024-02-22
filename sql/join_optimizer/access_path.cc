@@ -965,7 +965,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
                 : HashJoinInput::kBuild;
 
         auto innerIterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(job.children[1]), job.level, param.inner, true, true);
+            thd, mem_root, std::move(job.children[1]), job.level, param.inner);
 
         auto hashJoinIterator = NewIterator<HashJoinIterator>(
             thd, mem_root, std::move(innerIterator),
@@ -992,10 +992,10 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
         if (FinalizeMaterializedSubqueries(thd, join, path)) {
           return nullptr;
         }
-        auto filteriterator = NewIterator<FilterIterator>(
+        auto filter_iterator = NewIterator<FilterIterator>(
             thd, mem_root, std::move(job.children[0]), param.condition);
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(filteriterator), job.level, path);
+            thd, mem_root, std::move(filter_iterator), job.level, path);
         break;
       }
       case AccessPath::SORT: {
@@ -1020,7 +1020,7 @@ unique_ptr_destroy_only<RowIterator> CreateIteratorFromAccessPath(
               down_cast<SortingIterator *>(sort_iterator->real_iterator());
         }
         iterator = NewIterator<CheckIterator>(
-            thd, mem_root, std::move(sort_iterator), job.level, path, true, false);
+            thd, mem_root, std::move(sort_iterator), job.level, path, false, true);
         break;
       }
       case AccessPath::AGGREGATE: {
