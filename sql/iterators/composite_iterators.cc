@@ -87,7 +87,7 @@ using std::vector;
 
 bool CheckIterator::Init() {
   const double relative_level = static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels);
-  m_active = thd()->re_optimize.m_should_re_opt_hint && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - MAX_RELATIVE_LEVEL);
+  m_active = thd()->re_optimize.m_re_opt_hint_active && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - MAX_RELATIVE_LEVEL);
   return m_source->Init();
 }
 
@@ -107,10 +107,10 @@ int CheckIterator::Read() {
   if (m_active) {
     const double actual = std::max(m_found_count / m_loops, 1.0);
     const double estimate = std::max(m_access_path->num_output_rows(), 1.0);
-    const double above_diff = actual / estimate;
-    const double below_diff = estimate / actual;
-    const bool above_estimate = actual > estimate;
-    const double diff = above_estimate ? above_diff : below_diff;
+    const double q_error_above = actual / estimate;
+    const double q_error_below = estimate / actual;
+    const bool is_above_estimate = actual > estimate;
+    const double q_error = is_above_estimate ? q_error_above : q_error_below;
 
 #ifndef NDEBUG
     if (m_throw_if_wrong_cardinality) {
@@ -121,9 +121,8 @@ int CheckIterator::Read() {
     if (err == -1) {
       this->UpdateReOptimizeAccessPaths();
       m_loops += 1;
-      if (above_estimate ? m_throw_if_above && diff >= MIN_ABOVE_DIFF_TO_THROW : m_throw_if_below && diff >= MIN_BELOW_DIFF_TO_THROW) {
-        thd()->re_optimize.set_should_re_opt(true);
-        my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "CheckIterator");
+      if (is_above_estimate ? m_throw_if_above && q_error >= thd()->re_optimize.m_q_error_above_threshold : m_throw_if_below && q_error >= thd()->re_optimize.m_q_error_below_threshold) {
+        thd()->re_optimize.initiate_re_optimization();
 #ifndef NDEBUG
         printf("OH NO! Found count does not match estimated rows in CheckIterator (%f/%f). Type: %d. Diff: %f. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, diff, m_plan_level);
 #endif
@@ -135,10 +134,9 @@ int CheckIterator::Read() {
         return 1;
       }
     }
-    if (m_throw_if_above && above_diff >= MIN_ABOVE_DIFF_TO_THROW) {
+    if (m_throw_if_above && q_error_above >= thd()->re_optimize.m_q_error_above_threshold) {
       this->UpdateReOptimizeAccessPaths();
-      thd()->re_optimize.set_should_re_opt(true);
-      my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "CheckIterator");
+      thd()->re_optimize.initiate_re_optimization();
 #ifndef NDEBUG
       printf("OH NO! Found count is much above estimated rows in CheckIterator (%f/%f). Type: %d. Diff: %f. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, diff, m_plan_level);
 #endif

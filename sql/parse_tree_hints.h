@@ -355,12 +355,17 @@ class PT_hint_run_reopt_filter : public PT_hint {
   typedef PT_hint super;
 
 public:
-  PT_hint_run_reopt_filter() : PT_hint(RUN_REOPT_ENUM, false) {}
+  int q_error_below_threshold;
+  int q_error_above_threshold;
+
+  PT_hint_run_reopt_filter(int q_error_below_threshold_arg, int q_error_above_threshold_arg)
+      : PT_hint(RUN_REOPT_ENUM, false),
+        q_error_below_threshold(q_error_below_threshold_arg),
+        q_error_above_threshold(q_error_above_threshold_arg) {}
 
   /**
-    Function initializes resource group name and checks for presence of
-    resource group. Also it checks for invocation of hint from stored
-    routines or sub query.
+     Function initializes RUN_REOPT hint.
+
      @param pc Pointer to Parse_context object
      @return true in case of error,
              false otherwise

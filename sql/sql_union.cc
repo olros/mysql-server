@@ -1822,7 +1822,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
         this->optimize(thd, /*materialize_destination=*/nullptr,
                          /*create_iterators=*/true, /*finalize_access_paths=*/true);
-        thd->re_optimize.m_should_re_opt = false;
+        thd->re_optimize.m_should_re_optimize = false;
         thd->re_optimize.m_has_rerun = true;
 
         thd->clear_copy_status_var();

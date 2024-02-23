@@ -127,10 +127,6 @@ private:
   /// if actual cardinality is above the estimate
   bool m_throw_if_above;
 
-  /// Q-error above estimate needed to re-optimize
-  const int MIN_ABOVE_DIFF_TO_THROW = 30;
-  /// Q-error below estimate needed to re-optimize
-  const int MIN_BELOW_DIFF_TO_THROW = 60;
   /// The execution should only re-optimize at the beginning of the query plan
   const double MAX_RELATIVE_LEVEL = 0.4;
 

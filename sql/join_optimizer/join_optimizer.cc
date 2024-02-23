@@ -5464,7 +5464,7 @@ AccessPath *CostingReceiver::ProposeAccessPath(
   // see bug #33550360.
   const bool has_known_row_count_inconsistency_bugs =
       m_graph->has_reordered_left_joins || has_clamped_multipart_eq_ref ||
-      has_semijoin_with_possibly_clamped_child || m_thd->re_optimize.m_should_re_opt_hint;
+      has_semijoin_with_possibly_clamped_child || m_thd->re_optimize.m_re_opt_hint_active;
   bool verify_consistency = (m_trace != nullptr);
 #ifndef NDEBUG
   if (!has_known_row_count_inconsistency_bugs) {
