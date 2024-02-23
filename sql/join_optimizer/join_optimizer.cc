@@ -7399,6 +7399,10 @@ bool ApplyAggregation(
   return false;
 }
 
+bool IsJoinPredicatesEqual(const JoinPredicate *first, const JoinPredicate *second) {
+  return first->expr->type == second->expr->type && first->expr->tables_in_subtree == second->expr->tables_in_subtree;
+}
+
 void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
   if (thd->re_optimize.m_access_paths != nullptr) {
     Predicate *predicate = graph->predicates.begin();
@@ -7409,9 +7413,6 @@ void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
             const double actual_selectivity = actual_rows / re_opt_access_path->num_output_rows_before_filter;
 #ifndef NDEBUG
             printf("JoinHypergraph::FILTER Found matching condition, type: %d, actual_rows: %f, rows_before_filter %f, old_selectivity %f, new_selectivity %f \n", re_opt_access_path->type, actual_rows, re_opt_access_path->num_output_rows_before_filter, predicate->selectivity, new_selectivity);
-            fprintf(
-                stderr, "%s\n",
-                PrintQueryPlan(0, re_opt_access_path, nullptr, false).c_str());
 #endif
             predicate->selectivity = actual_selectivity;
             break;
@@ -7421,32 +7422,42 @@ void ApplyReOptimizeActualSelectivities(THD *thd, JoinHypergraph *graph) {
       predicate++;
     }
   }
-  if (thd->re_optimize.m_access_paths != nullptr && false) {
+  if (thd->re_optimize.m_access_paths != nullptr) {
+    std::vector<const JoinPredicate *> matched_join_predicates;
     for (auto [re_opt_access_path, actual_rows] :
       *thd->re_optimize.m_access_paths) {
-#ifndef NDEBUG
-      fprintf(
-          stderr, "JoinHypergraph::JOIN Query plan for recorded access path:\n%s\n",
-          PrintQueryPlan(0, re_opt_access_path, nullptr, false).c_str());
-#endif
-      JoinPredicate *join_predicate = graph->edges.begin();
-      for (unsigned i = 0; i < graph->edges.size(); i++) {
-        if (re_opt_access_path->type == AccessPath::HASH_JOIN ||
-             re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN) {
-          const JoinPredicate *re_op_join_predicate =
-              re_opt_access_path->type == AccessPath::HASH_JOIN
-                  ? re_opt_access_path->hash_join().join_predicate
-                  : re_opt_access_path->nested_loop_join().join_predicate;
-          if (join_predicate->expr->type == re_op_join_predicate->expr->type && join_predicate->expr->tables_in_subtree == re_op_join_predicate->expr->tables_in_subtree) {
-            const double actual_selectivity = (actual_rows / re_opt_access_path->num_output_rows()) * join_predicate->selectivity;
-#ifndef NDEBUG
-            printf("JoinHypergraph::JOIN Found equal join predicate %f %f %d %f \n", new_selectivity, join_predicate->selectivity, actual_rows, re_opt_access_path->num_output_rows());
-#endif
-            join_predicate->selectivity = actual_selectivity;
+      if (re_opt_access_path->type == AccessPath::HASH_JOIN ||
+           re_opt_access_path->type == AccessPath::NESTED_LOOP_JOIN) {
+        const JoinPredicate *re_op_join_predicate =
+            re_opt_access_path->type == AccessPath::HASH_JOIN
+                ? re_opt_access_path->hash_join().join_predicate
+                : re_opt_access_path->nested_loop_join().join_predicate;
+
+        bool already_matched = false;
+        for (const JoinPredicate * join_predicate : matched_join_predicates) {
+          if (IsJoinPredicatesEqual(join_predicate, re_op_join_predicate)) {
+            already_matched = true;
             break;
           }
         }
-        join_predicate++;
+
+        if (already_matched) {
+          continue;
+        }
+
+        JoinPredicate *join_predicate = graph->edges.begin();
+        for (unsigned i = 0; i < graph->edges.size(); i++) {
+          if (IsJoinPredicatesEqual(join_predicate, re_op_join_predicate)) {
+            const double actual_selectivity = (actual_rows / re_opt_access_path->num_output_rows()) * join_predicate->selectivity;
+#ifndef NDEBUG
+            printf("JoinHypergraph::JOIN Found equal join predicate %f %f %f %f \n", actual_selectivity, join_predicate->selectivity, actual_rows, re_opt_access_path->num_output_rows());
+#endif
+            join_predicate->selectivity = actual_selectivity;
+            matched_join_predicates.push_back(re_op_join_predicate);
+            break;
+          }
+          join_predicate++;
+        }
       }
     }
   }
