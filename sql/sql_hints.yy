@@ -639,17 +639,18 @@ set_var_hint:
 
 
 run_reopt_hint:
-            RUN_REOPT_HINT '(' HINT_ARG_NUMBER ',' HINT_ARG_NUMBER ')'
+            RUN_REOPT_HINT '(' HINT_ARG_NUMBER ',' HINT_ARG_NUMBER ',' HINT_ARG_NUMBER ')'
               {
                 longlong q_error_below;
                 longlong q_error_above;
-                if (parse_int(&q_error_below, $3.str, $3.length) || q_error_below > UINT_MAX32 || parse_int(&q_error_above, $5.str, $5.length) || q_error_above > UINT_MAX32)
+                longlong max_relative_level;
+                if (parse_int(&q_error_below, $3.str, $3.length) || q_error_below > UINT_MAX32 || parse_int(&q_error_above, $5.str, $5.length) || q_error_above > UINT_MAX32 || parse_int(&max_relative_level, $7.str, $7.length))
                 {
                   $$= nullptr;
                 }
                 else
                 {
-                $$ = NEW_PTN PT_hint_run_reopt_filter(q_error_below, q_error_above);
+                $$ = NEW_PTN PT_hint_run_reopt_filter(q_error_below, q_error_above, max_relative_level);
                 if ($$ == NULL)
                    YYABORT; // OOM
                 }

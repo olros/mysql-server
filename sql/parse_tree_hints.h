@@ -357,11 +357,13 @@ class PT_hint_run_reopt_filter : public PT_hint {
 public:
   int q_error_below_threshold;
   int q_error_above_threshold;
+  int max_relative_level;
 
-  PT_hint_run_reopt_filter(int q_error_below_threshold_arg, int q_error_above_threshold_arg)
+  PT_hint_run_reopt_filter(int q_error_below_threshold_arg, int q_error_above_threshold_arg, double max_relative_level_arg)
       : PT_hint(RUN_REOPT_ENUM, false),
         q_error_below_threshold(q_error_below_threshold_arg),
-        q_error_above_threshold(q_error_above_threshold_arg) {}
+        q_error_above_threshold(q_error_above_threshold_arg),
+        max_relative_level(max_relative_level_arg) {}
 
   /**
      Function initializes RUN_REOPT hint.

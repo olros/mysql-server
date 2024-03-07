@@ -586,6 +586,6 @@ bool PT_hint_resource_group::do_contextualize(Parse_context *pc) {
 bool PT_hint_run_reopt_filter::do_contextualize(Parse_context *pc) {
   if (super::do_contextualize(pc)) return true;
 
-  pc->thd->re_optimize.set_re_opt_hint(q_error_below_threshold, q_error_above_threshold);
+  pc->thd->re_optimize.set_re_opt_hint(q_error_below_threshold, q_error_above_threshold, static_cast<double>(max_relative_level) / 100);
   return false;
 }

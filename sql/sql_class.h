@@ -1067,6 +1067,8 @@ class THD : public MDL_context_owner,
     int m_q_error_below_threshold = std::numeric_limits<int>::max();
     /// Q-error above estimate needed to re-optimize
     int m_q_error_above_threshold = std::numeric_limits<int>::max();
+    /// Relative level of query where re-optimization can be initiated
+    double m_max_relative_level = std::numeric_limits<double>::max();
 
     void set_has_rerun(bool has_rerun) { m_has_rerun = has_rerun; }
     void initiate_re_optimization() {
@@ -1074,9 +1076,10 @@ class THD : public MDL_context_owner,
       my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "Re_Optimize");
     }
     void set_num_of_plan_levels(int num_of_plan_levels) { m_num_of_plan_levels = num_of_plan_levels; }
-    void set_re_opt_hint(int q_error_below_threshold_arg, int q_error_above_threshold_arg) {
+    void set_re_opt_hint(int q_error_below_threshold_arg, int q_error_above_threshold_arg, double q_max_relative_level_arg) {
       m_q_error_below_threshold = q_error_below_threshold_arg;
       m_q_error_above_threshold = q_error_above_threshold_arg;
+      m_max_relative_level = q_max_relative_level_arg;
       m_re_opt_hint_active = true;
     }
 

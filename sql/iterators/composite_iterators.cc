@@ -87,7 +87,7 @@ using std::vector;
 
 bool CheckIterator::Init() {
   const double relative_level = static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels);
-  m_active = thd()->re_optimize.m_re_opt_hint_active && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - MAX_RELATIVE_LEVEL);
+  m_active = thd()->re_optimize.m_re_opt_hint_active && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - thd()->re_optimize.m_max_relative_level);
   return m_source->Init();
 }
 
