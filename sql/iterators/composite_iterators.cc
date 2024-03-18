@@ -105,47 +105,52 @@ int CheckIterator::Read() {
     m_found_count += 1;
   }
   if (m_active) {
-    const double actual = std::max(m_found_count / m_loops, 1.0);
-    const double estimate = std::max(m_access_path->num_output_rows(), 1.0);
-    const double q_error_above = actual / estimate;
-    const double q_error_below = estimate / actual;
-    const bool is_above_estimate = actual > estimate;
-    const double q_error = is_above_estimate ? q_error_above : q_error_below;
+    const double actual = m_found_count / m_loops;
+    // Don't re-optimize if actual is zero, since it's
+    // unlikely to find a better plan when a operation outputs zero rows
+    if (actual > 0.0) {
+      const double estimate = m_access_path->num_output_rows();
+      const double q_error_above = estimate > 0.0 ? actual / estimate : actual;
+      const double q_error_below = estimate / actual;
+      const bool is_above_estimate = actual > estimate;
+      const double q_error = is_above_estimate ? q_error_above : q_error_below;
 
-#ifndef NDEBUG
-    if (m_throw_if_wrong_cardinality) {
-      printf("CheckIterator::plan_level_progress_percentage: %f (%d/%d)\n", diff, m_plan_level, thd()->re_optimize.m_num_of_plan_levels);
-    }
-#endif
+  #ifndef NDEBUG
+      if (m_throw_if_wrong_cardinality) {
+        printf("CheckIterator::plan_level_progress_percentage: %f (%d/%d)\n", diff, m_plan_level, thd()->re_optimize.m_num_of_plan_levels);
+      }
+  #endif
 
-    if (err == -1) {
-      this->UpdateReOptimizeAccessPaths();
-      m_loops += 1;
-      if (is_above_estimate ? m_throw_if_above && q_error >= thd()->re_optimize.m_q_error_above_threshold : m_throw_if_below && q_error >= thd()->re_optimize.m_q_error_below_threshold) {
+      if (err == -1) {
+        this->UpdateReOptimizeAccessPaths();
+        m_loops += 1;
+        if (is_above_estimate ? m_throw_if_above && q_error >= thd()->re_optimize.m_q_error_above_threshold : m_throw_if_below && q_error >= thd()->re_optimize.m_q_error_below_threshold) {
+          thd()->re_optimize.initiate_re_optimization();
+  #ifndef NDEBUG
+          const double relative_level = static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels);
+          printf("OH NO! Found count does not match estimated rows in CheckIterator (%f/%f). Type: %d. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, m_plan_level);
+  #endif
+  #ifndef NDEBUG
+          fprintf(
+            stderr, "Query plan:\n%s\n",
+            PrintQueryPlan(0, m_access_path, nullptr, false).c_str());
+  #endif
+          return 1;
+        }
+      }
+      if (m_throw_if_above && q_error_above >= thd()->re_optimize.m_q_error_above_threshold) {
+        this->UpdateReOptimizeAccessPaths();
         thd()->re_optimize.initiate_re_optimization();
-#ifndef NDEBUG
-        printf("OH NO! Found count does not match estimated rows in CheckIterator (%f/%f). Type: %d. Diff: %f. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, diff, m_plan_level);
-#endif
-#ifndef NDEBUG
+  #ifndef NDEBUG
+        printf("OH NO! Found count is much above estimated rows in CheckIterator (%f/%f). Type: %d. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, m_plan_level);
+  #endif
+  #ifndef NDEBUG
         fprintf(
           stderr, "Query plan:\n%s\n",
           PrintQueryPlan(0, m_access_path, nullptr, false).c_str());
-#endif
+  #endif
         return 1;
       }
-    }
-    if (m_throw_if_above && q_error_above >= thd()->re_optimize.m_q_error_above_threshold) {
-      this->UpdateReOptimizeAccessPaths();
-      thd()->re_optimize.initiate_re_optimization();
-#ifndef NDEBUG
-      printf("OH NO! Found count is much above estimated rows in CheckIterator (%f/%f). Type: %d. Diff: %f. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, diff, m_plan_level);
-#endif
-#ifndef NDEBUG
-      fprintf(
-        stderr, "Query plan:\n%s\n",
-        PrintQueryPlan(0, m_access_path, nullptr, false).c_str());
-#endif
-      return 1;
     }
   }
   if (err != 0) return err;

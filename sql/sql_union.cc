@@ -1789,7 +1789,9 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       }
     });
 
-    if (m_root_access_path->cost() < 25000.0) {
+    // TODO: Write about this in implementation in thesis
+    const double MIN_COST_TO_RE_OPTIMIZE = 150000.0;
+    if (m_root_access_path->cost() < MIN_COST_TO_RE_OPTIMIZE) {
       thd->re_optimize.set_has_rerun(true);
     }
 
