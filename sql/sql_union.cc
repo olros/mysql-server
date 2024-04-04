@@ -1815,6 +1815,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
         this->clear_root_access_path();
         for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
           if (sl->join != nullptr) {
+            sl->join->join_free();
             sl->join->destroy();
             sl->join = nullptr;
           }
