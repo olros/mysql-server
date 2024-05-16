@@ -622,13 +622,11 @@ bool JOIN::optimize(bool finalize_access_paths) {
     Item *having_cond_no_in2exists = remove_in2exists_conds(having_cond);
 
     std::string trace_str;
-    // std::string *trace_ptr = thd->opt_trace.is_started() ? &trace_str : nullptr;
-    std::string *trace_ptr = &trace_str;
+    std::string *trace_ptr = thd->opt_trace.is_started() ? &trace_str : nullptr;
 
     SaveCondEqualLists(cond_equal);
 
     m_root_access_path = FindBestQueryPlan(thd, query_block, trace_ptr);
-    // printf("\n optimizer trace -------\n\n %s\n\n", trace_ptr->c_str());
     if (finalize_access_paths && m_root_access_path != nullptr) {
       if (FinalizePlanForQueryBlock(thd, query_block)) {
         return true;

@@ -1678,9 +1678,6 @@ bool Query_expression::ClearForExecution() {
 bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   THD_STAGE_INFO(thd, stage_executing);
   DEBUG_SYNC(thd, "before_join_exec");
-#ifndef NDEBUG
-  printf("\nStart of ExecuteIteratorQuery ----- \n");
-#endif
 
   Opt_trace_context *const trace = &thd->opt_trace;
   Opt_trace_object trace_wrapper(trace);
@@ -1694,31 +1691,17 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     return true;
   }
 
-#ifndef NDEBUG
-  printf(" Has passed clear for execution \n");
-#endif
-
   mem_root_deque<Item *> *fields = get_field_list();
   Query_result *query_result = this->query_result();
   assert(query_result != nullptr);
   if (query_result->start_execution(thd)) return true;
 
-#ifndef NDEBUG
-  printf(" Has passed query result start_execution \n");
-#endif
-
   if (!thd->re_optimize.m_has_rerun) {
-#ifndef NDEBUG
-    printf("  Query result send_result_set metadata \n");
-#endif
     if (query_result->send_result_set_metadata(
             thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
       return true;
             }
   }
-#ifndef NDEBUG
-  printf(" Has passed query result send_result_set metadata \n");
-#endif
 
   set_executed();
 
@@ -1772,6 +1755,7 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     send_records_ptr = &send_records;
   }
   *send_records_ptr = 0;
+
   thd->get_stmt_da()->reset_current_row_for_condition();
 
   {
@@ -1789,15 +1773,11 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       }
     });
 
-    // TODO: Write about this in implementation in thesis
     const double MIN_COST_TO_RE_OPTIMIZE = 150000.0;
     if (m_root_access_path->cost() < MIN_COST_TO_RE_OPTIMIZE) {
       thd->re_optimize.set_has_rerun(true);
     }
 
-#ifndef NDEBUG
-    printf("\nBefore root_iterator Init() \n");
-#endif
     if (m_root_iterator->Init()) {
       if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
 #ifndef NDEBUG
@@ -1837,9 +1817,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
       }
       return true;
     }
-#ifndef NDEBUG
-    printf("\n has passed root_iterator_init \n");
-#endif
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
 
@@ -1870,10 +1847,6 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
     // row counts right.
   }
 
-#ifndef NDEBUG
-  printf("\nEnd of ExecuteIteratorQuery ----- \n\n");
-#endif
-
   thd->current_found_rows = *send_records_ptr;
 
   return query_result->send_eof(thd);
@@ -1890,14 +1863,8 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 bool Query_expression::execute(THD *thd) {
   DBUG_TRACE;
   assert(is_optimized());
-#ifndef NDEBUG
-  printf("Passed is_optimized\n");
-#endif
 
   if (is_executed() && !uncacheable) return false;
-#ifndef NDEBUG
-  printf("Passed is_executed\n");
-#endif
 
   assert(!unfinished_materialization());
 
