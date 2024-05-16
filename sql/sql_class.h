@@ -126,6 +126,7 @@ class PROFILING;
 class Query_tables_list;
 class Relay_log_info;
 class THD;
+struct AccessPath;
 class partition_info;
 class Protocol;
 class Protocol_binary;
@@ -1044,6 +1045,58 @@ class THD : public MDL_context_owner,
     - Other threads may read the value, but must hold LOCK_thd_query to do so.
   */
   String m_rewritten_query;
+
+ public:
+  /**
+   * Re-optimization logic. This include whether re-optimization should be
+   * initiated and found correct cardinalities at given access paths.
+  */
+  class Re_Optimize {
+  public:
+    /// Pairs of access paths and their actual cardinality
+    mem_root_deque<std::pair<AccessPath *, double>> *m_access_paths = nullptr;
+    /// Whether re-optimization has already happened
+    bool m_has_rerun = false;
+    /// Whether a CheckIterator has triggered re-optimization
+    bool m_should_re_optimize = false;
+    /// Whether the re-optimization hint is active
+    bool m_re_opt_hint_active = false;
+    /// Number of levels in the query plan
+    int m_num_of_plan_levels = 1;
+    /// Q-error below estimate needed to re-optimize
+    int m_q_error_below_threshold = std::numeric_limits<int>::max();
+    /// Q-error above estimate needed to re-optimize
+    int m_q_error_above_threshold = std::numeric_limits<int>::max();
+    /// Relative level of query where re-optimization can be initiated
+    double m_max_relative_level = std::numeric_limits<double>::max();
+
+    void set_has_rerun(bool has_rerun) { m_has_rerun = has_rerun; }
+    void initiate_re_optimization() {
+      m_should_re_optimize = true;
+      my_error(ER_SHOULD_RE_OPTIMIZE_QUERY, MYF(0), "Re_Optimize");
+    }
+    void set_num_of_plan_levels(int num_of_plan_levels) { m_num_of_plan_levels = num_of_plan_levels; }
+    void set_re_opt_hint(int q_error_below_threshold_arg, int q_error_above_threshold_arg, double q_max_relative_level_arg) {
+      m_q_error_below_threshold = q_error_below_threshold_arg;
+      m_q_error_above_threshold = q_error_above_threshold_arg;
+      m_max_relative_level = q_max_relative_level_arg;
+      m_re_opt_hint_active = true;
+    }
+
+    /// Re-optimizing should only occur if the hint is turned on,
+    /// a CheckIterator has initiated re-optimizing,
+    /// re-optimizing hasn't already happened,
+    /// and actual cardinalities have been found and stored
+    bool should_re_optimize() const { return m_re_opt_hint_active && m_should_re_optimize && !m_has_rerun && m_access_paths != nullptr; }
+
+    void reset() {
+      m_has_rerun = false;
+      m_should_re_optimize = false;
+      m_re_opt_hint_active = false;
+      m_q_error_below_threshold = std::numeric_limits<int>::max();
+      m_q_error_above_threshold = std::numeric_limits<int>::max();
+    }
+  } re_optimize;
 
  public:
   /* Used to execute base64 coded binlog events in MySQL server */

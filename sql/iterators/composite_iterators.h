@@ -80,6 +80,57 @@ class Temp_table_param;
 struct TABLE;
 
 /**
+  An iterator that counts rows as they're read and compares it to the exepected number of rows.
+  If activated, an should re-optimize-error is thrown if a significantly wrong cardinality estimate is found.
+  Throwing error should only be activated if the iterator wraps an access path that is naturally materialized,
+  as you risk that outputting rows to the client has already started otherwise.
+  A CheckInterator that is only counting, but not throwing an error will also contribute with correct cardinalities
+  during re-optimization if a check-operator higher up in the tree throws an error.
+ */
+class CheckIterator final : public RowIterator {
+public:
+  CheckIterator(THD *thd, unique_ptr_destroy_only<RowIterator> source,
+                 int plan_level, AccessPath *access_path, bool throw_if_below = true, bool throw_if_above = true)
+      : RowIterator(thd), m_source(std::move(source)), m_plan_level(plan_level), m_access_path(access_path), m_throw_if_below(throw_if_below), m_throw_if_above(throw_if_above) {}
+
+  bool Init() override;
+
+  int Read() override;
+
+  void SetNullRowFlag(bool is_null_row) override {
+    m_source->SetNullRowFlag(is_null_row);
+  }
+
+  void StartPSIBatchMode() override { m_source->StartPSIBatchMode(); }
+  void EndPSIBatchModeIfStarted() override {
+    m_source->EndPSIBatchModeIfStarted();
+  }
+  void UnlockRow() override { m_source->UnlockRow(); }
+
+private:
+  unique_ptr_destroy_only<RowIterator> m_source;
+  /// Active CheckIterator (count rows and re-optimize)
+  bool m_active;
+  /// What level in the query plan is the Iterator located at
+  int m_plan_level = 1;
+  /// How many rows have been retrieved through Read()
+  double m_found_count = 0.0;
+  /// How many times has the CheckIterator reached EOF
+  int m_loops = 1;
+  /// Access path of the iterator that this CheckIterator wraps,
+  /// which contains information about the estimated cardinality
+  AccessPath *m_access_path;
+  /// Whether the CheckIterator should initiate re-optimization
+  /// if actual cardinality is below the estimate
+  bool m_throw_if_below;
+  /// Whether the CheckIterator should initiate re-optimization
+  /// if actual cardinality is above the estimate
+  bool m_throw_if_above;
+
+  void UpdateReOptimizeAccessPaths();
+};
+
+/**
   An iterator that takes in a stream of rows and passes through only those that
   meet some criteria (i.e., a condition evaluates to true). This is typically
   used for WHERE/HAVING.

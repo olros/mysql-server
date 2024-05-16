@@ -1,6 +1,14 @@
 # emacs backup files
 *~
 
+.idea
+.DS_Store
+cmake-build-debug
+cmake-build-release
+.cache
+build-release
+compile_commands.json
+
 # Misc tags/ctags files
 tags
 TAGS

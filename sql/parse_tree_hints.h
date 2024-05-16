@@ -351,4 +351,29 @@ class PT_hint_resource_group : public PT_hint {
   }
 };
 
+class PT_hint_run_reopt_filter : public PT_hint {
+  typedef PT_hint super;
+
+public:
+  int q_error_below_threshold;
+  int q_error_above_threshold;
+  int max_relative_level;
+
+  PT_hint_run_reopt_filter(int q_error_below_threshold_arg, int q_error_above_threshold_arg, double max_relative_level_arg)
+      : PT_hint(RUN_REOPT_ENUM, false),
+        q_error_below_threshold(q_error_below_threshold_arg),
+        q_error_above_threshold(q_error_above_threshold_arg),
+        max_relative_level(max_relative_level_arg) {}
+
+  /**
+     Function initializes RUN_REOPT hint.
+
+     @param pc Pointer to Parse_context object
+     @return true in case of error,
+             false otherwise
+  */
+
+  bool do_contextualize(Parse_context *pc) override;
+};
+
 #endif /* PARSE_TREE_HINTS_INCLUDED */

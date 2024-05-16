@@ -56,6 +56,7 @@
 #include "mysqld_error.h"
 #include "prealloced_array.h"  // Prealloced_array
 #include "scope_guard.h"
+#include "sql_test.h"
 #include "sql/auth/auth_acls.h"
 #include "sql/current_thd.h"
 #include "sql/debug_sync.h"  // DEBUG_SYNC
@@ -1143,15 +1144,17 @@ bool Query_expression::optimize(THD *thd, TABLE *materialize_destination,
       }
     }
 
-    if (false) {
+#ifndef NDEBUG
+    if (thd->re_optimize.m_access_paths != nullptr) {
       // This can be useful during debugging.
       // TODO(sgunders): Consider adding the SET DEBUG force-subplan line here,
       // like we have on EXPLAIN FORMAT=tree if subplan_tokens is active.
-      bool is_root_of_join = (join != nullptr);
+      const bool is_root_of_join = (join != nullptr);
       fprintf(
-          stderr, "Query plan:\n%s\n",
+          stderr, "Query plan after re-optimize:\n%s\n",
           PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
-    }
+      }
+#endif
   }
 
   // When done with the outermost query expression, and if max_join_size is in
@@ -1691,12 +1694,13 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
   mem_root_deque<Item *> *fields = get_field_list();
   Query_result *query_result = this->query_result();
   assert(query_result != nullptr);
-
   if (query_result->start_execution(thd)) return true;
 
-  if (query_result->send_result_set_metadata(
-          thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
-    return true;
+  if (!thd->re_optimize.m_has_rerun) {
+    if (query_result->send_result_set_metadata(
+            thd, *fields, Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)) {
+      return true;
+            }
   }
 
   set_executed();
@@ -1756,24 +1760,68 @@ bool Query_expression::ExecuteIteratorQuery(THD *thd) {
 
   {
     auto join_cleanup = create_scope_guard([this, thd] {
-      for (Query_block *sl = first_query_block(); sl;
-           sl = sl->next_query_block()) {
-        JOIN *join = sl->join;
-        join->join_free();
-        thd->inc_examined_row_count(join->examined_rows);
+      if (!thd->re_optimize.should_re_optimize()) {
+        for (Query_block *sl = first_query_block(); sl;
+             sl = sl->next_query_block()) {
+          JOIN *join = sl->join;
+          join->join_free();
+          thd->inc_examined_row_count(join->examined_rows);
+        }
+        if (!is_simple() && set_operation()->m_is_materialized)
+          thd->inc_examined_row_count(
+              query_term()->query_block()->join->examined_rows);
       }
-      if (!is_simple() && set_operation()->m_is_materialized)
-        thd->inc_examined_row_count(
-            query_term()->query_block()->join->examined_rows);
     });
 
+    const double MIN_COST_TO_RE_OPTIMIZE = 150000.0;
+    if (m_root_access_path->cost() < MIN_COST_TO_RE_OPTIMIZE) {
+      thd->re_optimize.set_has_rerun(true);
+    }
+
     if (m_root_iterator->Init()) {
+      if (thd->get_stmt_da()->mysql_errno() == ER_SHOULD_RE_OPTIMIZE_QUERY && thd->re_optimize.should_re_optimize()) {
+#ifndef NDEBUG
+        JOIN *join = query_term()->query_block()->join;
+        const bool is_root_of_join = (join != nullptr);
+        fprintf(
+            stderr, "Query plan to re-optimize:\n%s\n",
+            PrintQueryPlan(0, m_root_access_path, join, is_root_of_join).c_str());
+#endif
+        thd->clear_error();
+#ifndef NDEBUG
+        printf("\nRerunning optimizer \n");
+#endif
+
+        this->clear_root_access_path();
+        for (Query_block *sl = this->first_query_block(); sl != nullptr; sl = sl->next_query_block()) {
+          if (sl->join != nullptr) {
+            sl->join->join_free();
+            sl->join->destroy();
+            sl->join = nullptr;
+          }
+          sl->cleanup(true);
+        }
+        this->clear_execution();
+
+        this->optimize(thd, /*materialize_destination=*/nullptr,
+                         /*create_iterators=*/true, /*finalize_access_paths=*/true);
+        thd->re_optimize.m_should_re_optimize = false;
+        thd->re_optimize.m_has_rerun = true;
+
+        thd->clear_copy_status_var();
+        thd->clear_current_query_costs();
+#ifndef NDEBUG
+        printf("\nRerunning again \n");
+#endif
+        return this->execute(thd);
+      }
       return true;
     }
 
     PFSBatchMode pfs_batch_mode(m_root_iterator.get());
 
     for (;;) {
+      if (thd->re_optimize.should_re_optimize()) break;
       int error = m_root_iterator->Read();
       DBUG_EXECUTE_IF("bug13822652_1", thd->killed = THD::KILL_QUERY;);
 

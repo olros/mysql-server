@@ -23,6 +23,7 @@
 #include "sql/iterators/composite_iterators.h"
 
 #include <limits.h>
+#include <sql/join_optimizer/explain_access_path.h>
 #include <stdio.h>
 #include <string.h>
 #include <algorithm>
@@ -83,6 +84,88 @@ using pack_rows::TableCollection;
 using std::any_of;
 using std::string;
 using std::vector;
+
+bool CheckIterator::Init() {
+  const double relative_level = static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels);
+  m_active = thd()->re_optimize.m_re_opt_hint_active && !thd()->re_optimize.m_has_rerun && relative_level >= (1.0 - thd()->re_optimize.m_max_relative_level);
+  return m_source->Init();
+}
+
+void CheckIterator::UpdateReOptimizeAccessPaths() {
+  const auto pair = std::make_pair(m_access_path, m_found_count / m_loops);
+  if (thd()->re_optimize.m_access_paths == nullptr) {
+    thd()->re_optimize.m_access_paths = new mem_root_deque<std::pair<AccessPath *, double>>(thd()->mem_root);
+  }
+  thd()->re_optimize.m_access_paths->push_front(pair);
+}
+
+int CheckIterator::Read() {
+  int err = m_source->Read();
+  if (err == 0 && m_active) {
+    m_found_count += 1;
+  }
+  if (m_active) {
+    const double actual = m_found_count / m_loops;
+    // Don't re-optimize if actual is zero, since it's
+    // unlikely to find a better plan when a operation outputs zero rows
+    if (actual > 0.0) {
+      const double estimate = m_access_path->num_output_rows();
+      const double q_error_above = estimate > 0.0 ? actual / estimate : actual;
+      const double q_error_below = estimate / actual;
+      const bool is_above_estimate = actual > estimate;
+      const double q_error = is_above_estimate ? q_error_above : q_error_below;
+
+  #ifndef NDEBUG
+      if (m_throw_if_wrong_cardinality) {
+        printf("CheckIterator::plan_level_progress_percentage: %f (%d/%d)\n", diff, m_plan_level, thd()->re_optimize.m_num_of_plan_levels);
+      }
+  #endif
+
+      if (err == -1) {
+        this->UpdateReOptimizeAccessPaths();
+        m_loops += 1;
+        if (is_above_estimate ? m_throw_if_above && q_error >= thd()->re_optimize.m_q_error_above_threshold : m_throw_if_below && q_error >= thd()->re_optimize.m_q_error_below_threshold) {
+          thd()->re_optimize.initiate_re_optimization();
+  #ifndef NDEBUG
+          const double relative_level = static_cast<double>(m_plan_level) / static_cast<double>(thd()->re_optimize.m_num_of_plan_levels);
+          printf("OH NO! Found count does not match estimated rows in CheckIterator (%f/%f). Type: %d. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, m_plan_level);
+  #endif
+  #ifndef NDEBUG
+          fprintf(
+            stderr, "Query plan:\n%s\n",
+            PrintQueryPlan(0, m_access_path, nullptr, false).c_str());
+  #endif
+          return 1;
+        }
+      }
+      if (m_throw_if_above && q_error_above >= thd()->re_optimize.m_q_error_above_threshold) {
+        this->UpdateReOptimizeAccessPaths();
+        thd()->re_optimize.initiate_re_optimization();
+  #ifndef NDEBUG
+        printf("OH NO! Found count is much above estimated rows in CheckIterator (%f/%f). Type: %d. Level: %d. Pls re-optimize 🚀\n", m_found_count, m_access_path->num_output_rows(), m_access_path->type, m_plan_level);
+  #endif
+  #ifndef NDEBUG
+        fprintf(
+          stderr, "Query plan:\n%s\n",
+          PrintQueryPlan(0, m_access_path, nullptr, false).c_str());
+  #endif
+        return 1;
+      }
+    }
+  }
+  if (err != 0) return err;
+
+  if (thd()->killed) {
+    thd()->send_kill_message();
+    return 1;
+  }
+
+  /* check for errors evaluating the condition */
+  if (thd()->is_error()) return 1;
+
+  // Successful row.
+  return 0;
+}
 
 int FilterIterator::Read() {
   for (;;) {
